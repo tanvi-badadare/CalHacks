@@ -58,7 +58,8 @@ class UniversalCoDeiService extends EventEmitter {
     this.platforms.browser = true;
     
     // Monitor for common coding platforms
-    this.monitorCodingWebsites();
+    // DISABLED: Uncomment for development/demo
+    // this.monitorCodingWebsites();
   }
 
   async initializeIDEMonitoring() {
@@ -68,7 +69,8 @@ class UniversalCoDeiService extends EventEmitter {
     this.platforms.ide = true;
     
     // This would integrate with IDE extensions
-    this.monitorIDEActions();
+    // DISABLED: Uncomment for development/demo
+    // this.monitorIDEActions();
   }
 
   async initializeClipboardMonitoring() {
@@ -77,7 +79,8 @@ class UniversalCoDeiService extends EventEmitter {
     this.platforms.clipboard = true;
     
     // Monitor clipboard for code copying
-    this.monitorClipboardChanges();
+    // DISABLED: Uncomment for development/demo
+    // this.monitorClipboardChanges();
   }
 
   async initializeGlobalHotkeys() {
