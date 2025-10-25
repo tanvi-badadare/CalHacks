@@ -1,9 +1,10 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, systemPreferences } = require('electron');
 const path = require('path');
 const FileMonitor = require('./services/FileMonitor');
 const KeystrokeMonitor = require('./services/KeystrokeMonitor');
 const UniversalCoDeiService = require('./services/UniversalCoDeiService');
 const ScreenOverlay = require('./services/ScreenOverlay');
+const ScreenReader = require('./services/ScreenReader');
 
 class CoDeiApp {
   constructor() {
@@ -13,6 +14,7 @@ class CoDeiApp {
     this.keystrokeMonitor = null;
     this.universalService = null;
     this.screenOverlay = null;
+    this.screenReader = null;
     this.isDev = process.argv.includes('--dev');
   }
 
@@ -141,6 +143,25 @@ class CoDeiApp {
   async initializeServices() {
     // Initialize Screen Overlay for visual hints
     this.screenOverlay = new ScreenOverlay();
+    
+    // Initialize Screen Reader for reading screen content
+    this.screenReader = new ScreenReader();
+    this.screenReader.on('contentDetected', (data) => {
+      try {
+        console.log('📸 Content detected:', data);
+        
+        // Show hint on screen overlay only if it's initialized
+        if (this.screenOverlay && this.screenOverlay.isActive) {
+          this.screenOverlay.showHint({
+            message: data.hint,
+            level: 1,
+            position: { x: 50, y: 50 },
+          });
+        }
+      } catch (error) {
+        console.error('Error handling content detection:', error);
+      }
+    });
     
     // Initialize Universal CoDei Service
     this.universalService = new UniversalCoDeiService();
@@ -273,8 +294,16 @@ class CoDeiApp {
         await this.fileMonitor.startMonitoring(options.watchPaths);
         await this.keystrokeMonitor.startMonitoring();
         
+        // Start screen reading
+        await this.screenReader.startReading();
+        
         // Show the screen overlay for hints
         await this.screenOverlay.showOverlay();
+        
+        // Hide the main window when monitoring starts
+        if (this.mainWindow) {
+          this.mainWindow.hide();
+        }
         
         this.updateTrayIcon(true); // Update tray to show active
         return { success: true };
@@ -288,8 +317,16 @@ class CoDeiApp {
         await this.fileMonitor.stopMonitoring();
         await this.keystrokeMonitor.stopMonitoring();
         
+        // Stop screen reading
+        this.screenReader.stopReading();
+        
         // Hide the screen overlay
         this.screenOverlay.hideOverlay();
+        
+        // Show the main window when monitoring stops
+        if (this.mainWindow) {
+          this.mainWindow.show();
+        }
         
         this.updateTrayIcon(false); // Update tray to show inactive
         return { success: true };
@@ -315,11 +352,40 @@ class CoDeiApp {
     ipcMain.handle('get-learning-profile', async () => {
       return this.universalService.learningProfile;
     });
+
+    // Handle sidebar toggle from indicator dot
+    ipcMain.on('toggle-sidebar', () => {
+      if (this.screenOverlay) {
+        this.screenOverlay.toggleSidebar();
+      }
+    });
+  }
+
+  async requestScreenPermissions() {
+    if (process.platform === 'darwin') {
+      try {
+        // Request screen recording permission
+        const status = systemPreferences.getMediaAccessStatus('screen');
+        console.log('📱 Screen recording permission status:', status);
+        
+        if (status !== 'granted') {
+          console.log('⚠️  Screen recording permission not granted. Requesting...');
+          await systemPreferences.askForMediaAccess('screen');
+        }
+        
+        // Note: macOS fullscreen apps run in a separate layer that Electron windows cannot overlay
+        // To show overlays in fullscreen, we would need a native module using NSOpenGL or Metal
+        console.log('⚠️  Note: Overlay visibility in fullscreen may be limited on macOS');
+      } catch (error) {
+        console.error('Failed to request screen recording permission:', error);
+      }
+    }
   }
 
   async initialize() {
     this.createTray(); // Create tray first
     this.createWindow();
+    await this.requestScreenPermissions(); // Request screen recording permissions
     this.initializeServices();
     this.setupIPC();
   }
