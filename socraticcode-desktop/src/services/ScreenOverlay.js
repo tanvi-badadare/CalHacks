@@ -17,11 +17,12 @@ class ScreenOverlay extends EventEmitter {
 
       this.screenBounds = { width, height };
 
-      // Create an overlay window that covers the entire screen
+      // Create an overlay window that covers the right side (25% width)
+      const sidebarWidth = Math.floor(width * 0.25);
       this.overlayWindow = new BrowserWindow({
-        width: width,
+        width: sidebarWidth,
         height: height,
-        x: 0,
+        x: width - sidebarWidth,
         y: 0,
         frame: false,
         transparent: true,
@@ -33,9 +34,14 @@ class ScreenOverlay extends EventEmitter {
           nodeIntegration: true,
           contextIsolation: false,
         },
-        // Make it click-through by default
+        // Make it click-through by default - pass through all mouse events
         ignoreMouseEvents: true,
+        hasShadow: false,
+        visibleOnAllWorkspaces: true,
       });
+      
+      // Explicitly set to ignore mouse events on macOS - but only in transparent areas
+      this.overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
       // Load overlay HTML
       this.overlayWindow.loadURL(`file://${__dirname}/../overlay/index.html`);

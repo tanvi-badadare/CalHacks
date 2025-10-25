@@ -15,6 +15,42 @@
             background: transparent;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .sidebar {
+            width: 25%;
+            height: 100vh;
+            background: rgba(26, 26, 26, 0.9);
+            backdrop-filter: blur(20px);
+            border-left: 2px solid rgba(0, 212, 170, 0.3);
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .sidebar-header {
+            color: #00d4aa;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .hint-log {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .no-hints {
+            color: #888;
+            text-align: center;
+            padding: 40px 20px;
+            font-size: 14px;
         }
 
         .hint-container {
@@ -94,6 +130,15 @@
     </style>
 </head>
 <body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <span>🎓</span>
+            <span>CoDei</span>
+        </div>
+        <div class="hint-log" id="hintLog">
+            <div class="no-hints">Waiting for hints...</div>
+        </div>
+    </div>
     <div id="hintOverlay"></div>
     <div id="highlightBox" class="highlight-box" style="display: none;"></div>
 
@@ -107,17 +152,18 @@
         });
 
         function showHint(hintData) {
-            const overlay = document.getElementById('hintOverlay');
-            const highlightBox = document.getElementById('highlightBox');
+            const hintLog = document.getElementById('hintLog');
             
-            // Clear previous hint
-            clearTimeout(hintTimeout);
-            overlay.innerHTML = '';
-
-            // Create hint bubble
-            const hintContainer = document.createElement('div');
-            hintContainer.className = `hint-container hint-level-${hintData.level || 3}`;
-
+            // Remove "Waiting for hints" message
+            const noHintsMsg = hintLog.querySelector('.no-hints');
+            if (noHintsMsg) {
+                noHintsMsg.remove();
+            }
+            
+            // Create hint card
+            const hintCard = document.createElement('div');
+            hintCard.className = `hint-container hint-level-${hintData.level || 3}`;
+            
             const hintBubble = document.createElement('div');
             hintBubble.className = 'hint-bubble';
             
@@ -125,7 +171,7 @@
             hintHeader.className = 'hint-header';
             hintHeader.innerHTML = `
                 <span class="hint-icon">🎓</span>
-                <span>CoDei Hint ${hintData.level || 3}</span>
+                <span>Hint ${hintData.level || 3}</span>
             `;
 
             const hintContent = document.createElement('div');
@@ -134,51 +180,20 @@
 
             hintBubble.appendChild(hintHeader);
             hintBubble.appendChild(hintContent);
-            hintContainer.appendChild(hintBubble);
-
-            // Position the hint
-            if (hintData.position) {
-                hintContainer.style.left = `${hintData.position.x}px`;
-                hintContainer.style.top = `${hintData.position.y}px`;
-            } else {
-                // Default to top-right
-                hintContainer.style.right = '20px';
-                hintContainer.style.top = '20px';
-            }
-
-            // Show highlight box if coordinates provided
-            if (hintData.highlight) {
-                highlightBox.style.left = `${hintData.highlight.x}px`;
-                highlightBox.style.top = `${hintData.highlight.y}px`;
-                highlightBox.style.width = `${hintData.highlight.width}px`;
-                highlightBox.style.height = `${hintData.highlight.height}px`;
-                highlightBox.style.display = 'block';
-            } else {
-                highlightBox.style.display = 'none';
-            }
-
-            hintContainer.style.display = 'block';
-            overlay.appendChild(hintContainer);
-
-            // Auto-hide after 5 seconds
-            hintTimeout = setTimeout(() => {
-                hintContainer.style.animation = 'fadeOut 0.3s ease-out';
-                setTimeout(() => {
-                    hintContainer.remove();
-                    highlightBox.style.display = 'none';
-                }, 300);
-            }, 5000);
+            hintCard.appendChild(hintBubble);
+            
+            // Add timestamp
+            const timestamp = new Date().toLocaleTimeString();
+            const timeDiv = document.createElement('div');
+            timeDiv.style.cssText = 'color: #888; font-size: 11px; margin-top: 8px;';
+            timeDiv.textContent = timestamp;
+            hintCard.appendChild(timeDiv);
+            
+            // Add to sidebar (prepend to show newest first)
+            hintLog.insertBefore(hintCard, hintLog.firstChild);
         }
 
-        // Simulated hint for testing
-        setTimeout(() => {
-            showHint({
-                message: "This is a test hint from CoDei! Keep learning! 🎓",
-                level: 3,
-                position: { x: 100, y: 100 },
-                highlight: { x: 50, y: 50, width: 200, height: 100 }
-            });
-        }, 2000);
+        // No test hint - hints will appear when triggered by events
     </script>
 </body>
 </html>
