@@ -34,14 +34,14 @@ class ScreenOverlay extends EventEmitter {
           nodeIntegration: true,
           contextIsolation: false,
         },
-        // Make it click-through by default - pass through all mouse events
-        ignoreMouseEvents: true,
+        // Make it NOT click-through - solid sidebar
+        ignoreMouseEvents: false,
         hasShadow: false,
         visibleOnAllWorkspaces: true,
       });
       
-      // Explicitly set to ignore mouse events on macOS - but only in transparent areas
-      this.overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+      // Make the sidebar solid and clickable
+      this.overlayWindow.setIgnoreMouseEvents(false);
 
       // Load overlay HTML
       this.overlayWindow.loadURL(`file://${__dirname}/../overlay/index.html`);
