@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoDei Extension Test Page</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+        }
+        .test-section h3 {
+            color: #00d4aa;
+            margin-top: 0;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        button {
+            background: #00d4aa;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #00a085;
+        }
+        .code-block {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            border-left: 4px solid #00d4aa;
+            margin: 10px 0;
+        }
+        .instructions {
+            background: #e8f5e8;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #00d4aa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 CoDei Extension Test Page</h1>
+        
+        <div class="instructions">
+            <h3>How to Test the CoDei Extension:</h3>
+            <ol>
+                <li>Make sure the CoDei extension is loaded in your browser</li>
+                <li>Try the test scenarios below</li>
+                <li>Watch for CoDei interventions and learning hints</li>
+                <li>Look for the floating 🎓 button in the bottom right</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>Test 1: Solution Request Detection</h3>
+            <p>Try typing these solution requests in the text area below:</p>
+            <textarea id="solutionInput" placeholder="Try typing: 'Write me a complete function to sort an array' or 'Give me the full code for a login system'"></textarea>
+            <button onclick="simulateSolutionRequest()">Simulate Solution Request</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Test 2: Code Copying Detection</h3>
+            <p>Copy this code block to test the copying reminder:</p>
+            <div class="code-block">
+function bubbleSort(arr) {
+    for (let i = 0; i < arr.length; i++) {
+        for (let j = 0; j < arr.length - i - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
+            }
+        }
+    }
+    return arr;
+}
+            </div>
+            <button onclick="selectCode()">Select Code to Copy</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Test 3: AI Completion Requests</h3>
+            <p>Try these AI completion patterns:</p>
+            <textarea id="aiInput" placeholder="Try: 'Complete this function' or 'Generate me a complete class'"></textarea>
+            <button onclick="simulateAIRequest()">Simulate AI Request</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Test 4: Extension Status</h3>
+            <p>Click the floating 🎓 button to see your learning statistics and extension status.</p>
+            <button onclick="showExtensionStatus()">Show Extension Status</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Real Website Testing</h3>
+            <p>For the most realistic testing, try the extension on these websites:</p>
+            <button onclick="openChatGPT()">Open ChatGPT</button>
+            <button onclick="openGitHub()">Open GitHub</button>
+            <button onclick="openStackOverflow()">Open Stack Overflow</button>
+        </div>
+    </div>
+
+    <script>
+        function simulateSolutionRequest() {
+            const input = document.getElementById('solutionInput');
+            const text = input.value || "Write me a complete function to sort an array";
+            
+            // Create a fake input event to trigger the extension
+            const event = new Event('input', { bubbles: true });
+            input.value = text;
+            input.dispatchEvent(event);
+            
+            console.log('🎓 CoDei should detect this solution request:', text);
+        }
+
+        function simulateAIRequest() {
+            const input = document.getElementById('aiInput');
+            const text = input.value || "Complete this function";
+            
+            const event = new Event('input', { bubbles: true });
+            input.value = text;
+            input.dispatchEvent(event);
+            
+            console.log('🎓 CoDei should detect this AI request:', text);
+        }
+
+        function selectCode() {
+            const codeBlock = document.querySelector('.code-block');
+            const range = document.createRange();
+            range.selectNodeContents(codeBlock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            console.log('🎓 CoDei should show copying reminder for selected code');
+        }
+
+        function showExtensionStatus() {
+            alert('Click the floating 🎓 button in the bottom right corner to see your learning statistics and extension status!');
+        }
+
+        function openChatGPT() {
+            window.open('https://chat.openai.com/', '_blank');
+        }
+
+        function openGitHub() {
+            window.open('https://github.com/', '_blank');
+        }
+
+        function openStackOverflow() {
+            window.open('https://stackoverflow.com/', '_blank');
+        }
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎓 CoDei Test Page Loaded');
+            console.log('Make sure the CoDei extension is active to see interventions!');
+        });
+    </script>
+</body>
+</html>
