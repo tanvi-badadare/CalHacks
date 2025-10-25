@@ -35,13 +35,114 @@
             color: #ffffff;
             font-size: 18px;
             font-weight: 600;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
             padding-bottom: 16px;
             border-bottom: 1px solid rgba(100, 100, 100, 0.2);
             display: flex;
             align-items: center;
             gap: 10px;
             justify-content: space-between;
+        }
+        
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 80px);
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .message {
+            display: flex;
+            gap: 8px;
+            max-width: 85%;
+        }
+        
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        
+        .message.user .message-avatar {
+            background: rgba(0, 212, 170, 0.2);
+        }
+        
+        .message.ai .message-avatar {
+            background: rgba(100, 100, 100, 0.2);
+        }
+        
+        .message-content {
+            background: rgb(35, 35, 35);
+            border: 1px solid rgba(100, 100, 100, 0.2);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #e0e0e0;
+        }
+        
+        .message.user .message-content {
+            background: rgba(0, 212, 170, 0.1);
+            border-color: rgba(0, 212, 170, 0.3);
+        }
+        
+        .chat-input-container {
+            display: flex;
+            gap: 8px;
+            padding: 12px 0;
+            border-top: 1px solid rgba(100, 100, 100, 0.2);
+        }
+        
+        .chat-input {
+            flex: 1;
+            background: rgb(35, 35, 35);
+            border: 1px solid rgba(100, 100, 100, 0.2);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #e0e0e0;
+            font-size: 13px;
+            font-family: inherit;
+            resize: none;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: rgba(0, 212, 170, 0.5);
+        }
+        
+        .send-btn {
+            background: rgba(0, 212, 170, 0.2);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            color: #00d4aa;
+            border-radius: 8px;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        .send-btn:hover {
+            background: rgba(0, 212, 170, 0.3);
+            border-color: rgba(0, 212, 170, 0.5);
         }
         
         .sidebar-controls {
@@ -169,15 +270,21 @@
     <div class="sidebar">
         <div class="sidebar-header">
             <div>
-                <span>🎓</span>
-                <span>CoDei</span>
+                <span>🤖</span>
+                <span>CoDei AI</span>
             </div>
             <div class="sidebar-controls">
                 <button class="collapse-btn" id="collapseBtn" title="Collapse Sidebar">◀</button>
             </div>
         </div>
-        <div class="hint-log" id="hintLog">
-            <div class="no-hints">Waiting for hints...</div>
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <!-- Messages will appear here -->
+            </div>
+            <div class="chat-input-container">
+                <textarea class="chat-input" id="chatInput" placeholder="Type your message..." rows="1"></textarea>
+                <button class="send-btn" id="sendBtn">Send</button>
+            </div>
         </div>
     </div>
     <div id="hintOverlay"></div>
@@ -185,61 +292,61 @@
 
     <script>
         const { ipcRenderer } = require('electron');
-        let hintTimeout = null;
+
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
 
         // Handle collapse button
         document.getElementById('collapseBtn').addEventListener('click', () => {
             ipcRenderer.send('toggle-sidebar');
         });
 
-        // Listen for hint messages from main process
-        ipcRenderer.on('show-hint', (event, hintData) => {
-            showHint(hintData);
-        });
-
-        function showHint(hintData) {
-            const hintLog = document.getElementById('hintLog');
+        // Send message
+        function sendMessage() {
+            const text = chatInput.value.trim();
+            if (!text) return;
             
-            // Remove "Waiting for hints" message
-            const noHintsMsg = hintLog.querySelector('.no-hints');
-            if (noHintsMsg) {
-                noHintsMsg.remove();
-            }
+            addMessage('user', text);
+            chatInput.value = '';
             
-            // Create hint card
-            const hintCard = document.createElement('div');
-            hintCard.className = `hint-container hint-level-${hintData.level || 3}`;
-            
-            const hintBubble = document.createElement('div');
-            hintBubble.className = 'hint-bubble';
-            
-            const hintHeader = document.createElement('div');
-            hintHeader.className = 'hint-header';
-            hintHeader.innerHTML = `
-                <span class="hint-icon">🎓</span>
-                <span>Hint ${hintData.level || 3}</span>
-            `;
-
-            const hintContent = document.createElement('div');
-            hintContent.className = 'hint-content';
-            hintContent.textContent = hintData.message || 'Keep learning!';
-
-            hintBubble.appendChild(hintHeader);
-            hintBubble.appendChild(hintContent);
-            hintCard.appendChild(hintBubble);
-            
-            // Add timestamp
-            const timestamp = new Date().toLocaleTimeString();
-            const timeDiv = document.createElement('div');
-            timeDiv.style.cssText = 'color: #888; font-size: 11px; margin-top: 8px;';
-            timeDiv.textContent = timestamp;
-            hintCard.appendChild(timeDiv);
-            
-            // Add to sidebar (prepend to show newest first)
-            hintLog.insertBefore(hintCard, hintLog.firstChild);
+            // Simulate AI response (in real app, this would call an API)
+            setTimeout(() => {
+                addMessage('ai', 'I\'m here to help you learn! Feel free to ask any coding questions.');
+            }, 500);
         }
 
-        // No test hint - hints will appear when triggered by events
+        sendBtn.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Listen for hint messages from main process
+        ipcRenderer.on('show-hint', (event, hintData) => {
+            addMessage('ai', hintData.message || 'Keep learning!');
+        });
+
+        function addMessage(sender, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = sender === 'user' ? '👤' : '🤖';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.textContent = text;
+            
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(content);
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
     </script>
 </body>
 </html>

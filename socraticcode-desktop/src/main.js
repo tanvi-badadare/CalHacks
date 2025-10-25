@@ -372,6 +372,10 @@ class CoDeiApp {
           console.log('⚠️  Screen recording permission not granted. Requesting...');
           await systemPreferences.askForMediaAccess('screen');
         }
+        
+        // Note: macOS fullscreen apps run in a separate layer that Electron windows cannot overlay
+        // To show overlays in fullscreen, we would need a native module using NSOpenGL or Metal
+        console.log('⚠️  Note: Overlay visibility in fullscreen may be limited on macOS');
       } catch (error) {
         console.error('Failed to request screen recording permission:', error);
       }

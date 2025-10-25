@@ -1,4 +1,4 @@
-const { BrowserWindow, screen } = require('electron');
+const { BrowserWindow, screen, nativeTheme } = require('electron');
 const EventEmitter = require('events');
 
 class ScreenOverlay extends EventEmitter {
@@ -45,26 +45,42 @@ class ScreenOverlay extends EventEmitter {
         visibleOnAllWorkspaces: true,
         fullscreenable: false,
         simpleFullscreen: false,
+        // macOS-specific flags for always-on-top in fullscreen
+        level: 'screen-saver', // Higher level for always-on-top
+        acceptFirstMouse: true,
       });
       
       // Make the sidebar solid and clickable
       this.overlayWindow.setIgnoreMouseEvents(false);
-
-      // Set fullscreen access on macOS for universal visibility
-      if (process.platform === 'darwin') {
-        try {
-          this.overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-          console.log('🎯 Sidebar set to be visible on fullscreen apps');
-        } catch (error) {
-          console.error('Failed to set sidebar visibility:', error);
-        }
-      }
+      
+      // Force always on top with special level (like Zoom does)
+      this.overlayWindow.setAlwaysOnTop(true, 'screen-saver');
 
       // Load overlay HTML
       this.overlayWindow.loadURL(`file://${__dirname}/../overlay/index.html`);
 
       // Make it visible
       this.overlayWindow.show();
+      
+      // Set visible on fullscreen apps (must be called after window is shown on macOS)
+      if (process.platform === 'darwin') {
+        // Use setTimeout to ensure window is fully loaded
+        setTimeout(() => {
+          try {
+            this.overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+            
+            // Force to top using electron's internal API
+            this.overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+            this.overlayWindow.setAlwaysOnTop(true, 'floating');
+            this.overlayWindow.setAlwaysOnTop(true, 'normal');
+            this.overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+            
+            console.log('🎯 Sidebar set to be visible on fullscreen apps with multiple levels');
+          } catch (error) {
+            console.error('Failed to set sidebar fullscreen visibility:', error);
+          }
+        }, 500);
+      }
 
       this.isActive = true;
       console.log('🎯 Screen overlay activated');
@@ -101,18 +117,14 @@ class ScreenOverlay extends EventEmitter {
       visibleOnAllWorkspaces: true,
       fullscreenable: false,
       simpleFullscreen: false,
+      // macOS-specific flags for always-on-top in fullscreen
+      level: 'screen-saver',
+      acceptFirstMouse: true,
     });
-
-          // Set fullscreen access on macOS for universal visibility
-      if (process.platform === 'darwin') {
-        try {
-          this.indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-          console.log('🎯 Indicator set to be visible on fullscreen apps');
-          console.log('📱 Make sure Electron has Screen Recording permission in System Preferences');
-        } catch (error) {
-          console.error('Failed to set indicator visibility:', error);
-        }
-      }
+    
+    // Force always on top with special level (like Zoom does)
+    this.indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+    console.log('🎯 Indicator set to always on top with screen-saver level');
 
     // Create HTML for the indicator
     const indicatorHTML = `
@@ -127,6 +139,15 @@ class ScreenOverlay extends EventEmitter {
             justify-content: center;
             align-items: center;
             background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          }
+          .indicator-container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
           }
           .indicator {
             width: 12px;
@@ -134,24 +155,27 @@ class ScreenOverlay extends EventEmitter {
             background: #00d4aa;
             border-radius: 50%;
             cursor: pointer;
-            box-shadow: 0 0 10px rgba(0, 212, 170, 0.6);
+            box-shadow: 0 0 15px rgba(0, 212, 170, 0.8);
             transition: all 0.2s ease;
           }
           .indicator:hover {
-            transform: scale(1.2);
-            box-shadow: 0 0 15px rgba(0, 212, 170, 0.8);
+            transform: scale(1.15);
+            box-shadow: 0 0 20px rgba(0, 212, 170, 1);
           }
+
           .indicator.active {
             animation: pulse 2s infinite;
           }
           @keyframes pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            50% { opacity: 0.6; }
           }
         </style>
       </head>
       <body>
-        <div class="indicator active" id="indicator"></div>
+        <div class="indicator-container">
+          <div class="indicator active" id="indicator"></div>
+        </div>
         <script>
           const indicator = document.getElementById('indicator');
           const { ipcRenderer } = require('electron');
@@ -166,6 +190,40 @@ class ScreenOverlay extends EventEmitter {
 
     this.indicatorWindow.loadURL(`data:text/html,${encodeURIComponent(indicatorHTML)}`);
     this.indicatorWindow.show();
+    
+    // Set visible on fullscreen apps (must be called after window is shown on macOS)
+    if (process.platform === 'darwin') {
+      // Use setTimeout to ensure window is fully loaded
+      setTimeout(() => {
+        try {
+          this.indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+          
+          // Force to top using electron's internal API
+          this.indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+          this.indicatorWindow.setAlwaysOnTop(true, 'floating');
+          this.indicatorWindow.setAlwaysOnTop(true, 'normal');
+          this.indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+          
+          console.log('🎯 Indicator set to be visible on fullscreen apps with multiple levels');
+        } catch (error) {
+          console.error('Failed to set indicator fullscreen visibility:', error);
+        }
+      }, 500);
+      
+      // Also try setting it on the ready event
+      this.indicatorWindow.webContents.once('did-finish-load', () => {
+        setTimeout(() => {
+          try {
+            this.indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+            this.indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+            console.log('🎯 Indicator visibility set again after load');
+          } catch (error) {
+            console.error('Failed to set indicator visibility after load:', error);
+          }
+        }, 200);
+      });
+    }
+    
     console.log('🎯 Indicator dot created');
   }
 
