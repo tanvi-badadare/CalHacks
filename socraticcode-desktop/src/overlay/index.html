@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoDei Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: transparent;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .hint-container {
+            position: absolute;
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .hint-bubble {
+            background: rgba(0, 212, 170, 0.95);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+        }
+
+        .hint-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .hint-icon {
+            font-size: 18px;
+        }
+
+        .hint-content {
+            font-size: 14px;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .hint-level-1 .hint-bubble {
+            background: rgba(255, 71, 87, 0.95); /* Red */
+        }
+
+        .hint-level-2 .hint-bubble {
+            background: rgba(255, 159, 64, 0.95); /* Orange */
+        }
+
+        .hint-level-3 .hint-bubble {
+            background: rgba(0, 212, 170, 0.95); /* Green */
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .highlight-box {
+            position: absolute;
+            border: 3px solid rgba(0, 212, 170, 0.8);
+            border-radius: 6px;
+            pointer-events: none;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 0.6;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="hintOverlay"></div>
+    <div id="highlightBox" class="highlight-box" style="display: none;"></div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        let hintTimeout = null;
+
+        // Listen for hint messages from main process
+        ipcRenderer.on('show-hint', (event, hintData) => {
+            showHint(hintData);
+        });
+
+        function showHint(hintData) {
+            const overlay = document.getElementById('hintOverlay');
+            const highlightBox = document.getElementById('highlightBox');
+            
+            // Clear previous hint
+            clearTimeout(hintTimeout);
+            overlay.innerHTML = '';
+
+            // Create hint bubble
+            const hintContainer = document.createElement('div');
+            hintContainer.className = `hint-container hint-level-${hintData.level || 3}`;
+
+            const hintBubble = document.createElement('div');
+            hintBubble.className = 'hint-bubble';
+            
+            const hintHeader = document.createElement('div');
+            hintHeader.className = 'hint-header';
+            hintHeader.innerHTML = `
+                <span class="hint-icon">🎓</span>
+                <span>CoDei Hint ${hintData.level || 3}</span>
+            `;
+
+            const hintContent = document.createElement('div');
+            hintContent.className = 'hint-content';
+            hintContent.textContent = hintData.message || 'Keep learning!';
+
+            hintBubble.appendChild(hintHeader);
+            hintBubble.appendChild(hintContent);
+            hintContainer.appendChild(hintBubble);
+
+            // Position the hint
+            if (hintData.position) {
+                hintContainer.style.left = `${hintData.position.x}px`;
+                hintContainer.style.top = `${hintData.position.y}px`;
+            } else {
+                // Default to top-right
+                hintContainer.style.right = '20px';
+                hintContainer.style.top = '20px';
+            }
+
+            // Show highlight box if coordinates provided
+            if (hintData.highlight) {
+                highlightBox.style.left = `${hintData.highlight.x}px`;
+                highlightBox.style.top = `${hintData.highlight.y}px`;
+                highlightBox.style.width = `${hintData.highlight.width}px`;
+                highlightBox.style.height = `${hintData.highlight.height}px`;
+                highlightBox.style.display = 'block';
+            } else {
+                highlightBox.style.display = 'none';
+            }
+
+            hintContainer.style.display = 'block';
+            overlay.appendChild(hintContainer);
+
+            // Auto-hide after 5 seconds
+            hintTimeout = setTimeout(() => {
+                hintContainer.style.animation = 'fadeOut 0.3s ease-out';
+                setTimeout(() => {
+                    hintContainer.remove();
+                    highlightBox.style.display = 'none';
+                }, 300);
+            }, 5000);
+        }
+
+        // Simulated hint for testing
+        setTimeout(() => {
+            showHint({
+                message: "This is a test hint from CoDei! Keep learning! 🎓",
+                level: 3,
+                position: { x: 100, y: 100 },
+                highlight: { x: 50, y: 50, width: 200, height: 100 }
+            });
+        }, 2000);
+    </script>
+</body>
+</html>
