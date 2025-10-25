@@ -1,0 +1,47 @@
+{
+  "name": "codei-desktop",
+  "version": "1.0.0",
+  "description": "CoDei - AI Coding Tutor Desktop Application",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux"
+  },
+  "keywords": ["coding", "tutor", "ai", "education", "desktop"],
+  "author": "Tanvi",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "node-keylogger": "^0.0.2",
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
+  },
+  "build": {
+    "appId": "com.codei.desktop",
+    "productName": "CoDei",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.education"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

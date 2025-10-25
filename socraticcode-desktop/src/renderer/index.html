@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SocraticCode</title>
+    <style>
+        :root {
+            /* Dark Mode Colors */
+            --primary-bg: #1a1a1a;        /* Charcoal black */
+            --secondary-bg: #2d2d2d;      /* Steel gray */
+            --accent: #00d4aa;            /* Cyber aqua */
+            --secondary-accent: #4a9b8e;  /* Teal grey */
+            --error: #ff4757;             /* Red */
+            --success: #2ed573;           /* Green */
+            --text-primary: #ffffff;      /* White text */
+            --text-secondary: #b0b0b0;    /* Light gray text */
+            --border: #404040;            /* Dark border */
+        }
+
+        [data-theme="light"] {
+            /* Light Mode Colors */
+            --primary-bg: #ffffff;        /* White */
+            --secondary-bg: #f8f9fa;      /* Light gray */
+            --accent: #00a085;           /* Darker aqua */
+            --secondary-accent: #6bb6a8; /* Lighter teal */
+            --error: #e74c3c;            /* Softer red */
+            --success: #27ae60;           /* Softer green */
+            --text-primary: #2c3e50;     /* Dark text */
+            --text-secondary: #7f8c8d;   /* Gray text */
+            --border: #e0e0e0;           /* Light border */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--primary-bg);
+            color: var(--text-primary);
+            overflow: hidden; /* No scrolling */
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .theme-toggle {
+            background: var(--secondary-bg);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            background: var(--accent);
+            color: var(--primary-bg);
+        }
+
+        .status-card {
+            background: transparent;
+            border: none;
+            padding: 20px;
+            margin-bottom: 24px;
+            width: 100%;
+            max-width: 340px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .status-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            gap: 12px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .status-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            transition: all 0.4s ease;
+            position: relative;
+            flex-shrink: 0;
+            border: 2px solid transparent;
+        }
+
+        .status-dot.active {
+            background: linear-gradient(135deg, var(--success), #20c997);
+            box-shadow: 
+                0 0 20px rgba(46, 213, 115, 0.6),
+                0 0 40px rgba(46, 213, 115, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            animation: pulse 2s infinite, glow 3s ease-in-out infinite alternate;
+            border-color: rgba(46, 213, 115, 0.3);
+        }
+
+        .status-dot.inactive {
+            background: linear-gradient(135deg, var(--text-secondary), #666);
+            box-shadow: 
+                0 0 10px rgba(176, 176, 176, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            border-color: rgba(176, 176, 176, 0.2);
+        }
+
+        @keyframes glow {
+            0% {
+                box-shadow: 
+                    0 0 20px rgba(46, 213, 115, 0.6),
+                    0 0 40px rgba(46, 213, 115, 0.3),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            }
+            100% {
+                box-shadow: 
+                    0 0 30px rgba(46, 213, 115, 0.8),
+                    0 0 60px rgba(46, 213, 115, 0.4),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 12px rgba(46, 213, 115, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 20px rgba(46, 213, 115, 0.6);
+            }
+            100% {
+                box-shadow: 0 0 12px rgba(46, 213, 115, 0.4);
+            }
+        }
+
+        .status-text {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 1px;
+            text-align: center;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .status-text::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent), var(--secondary-accent));
+            transition: width 0.3s ease;
+        }
+
+        .status-card:hover .status-text::after {
+            width: 100%;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            width: 100%;
+            max-width: 320px;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: var(--primary-bg);
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            box-shadow: 0 2px 8px rgba(0, 212, 170, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            background: var(--secondary-accent);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 212, 170, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 12px rgba(0, 212, 170, 0.3);
+        }
+
+        .btn.danger {
+            background: var(--error);
+            color: white;
+            box-shadow: 0 2px 8px rgba(255, 71, 87, 0.2);
+        }
+
+        .btn.danger:hover {
+            background: #ff3742;
+            box-shadow: 0 6px 20px rgba(255, 71, 87, 0.4);
+        }
+
+        .btn:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn:disabled::before {
+            display: none;
+        }
+
+        .personality-section {
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 24px;
+        }
+
+        .personality-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .personality-select {
+            width: 100%;
+            background: var(--secondary-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b0b0b0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
+        .personality-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.2);
+        }
+
+        .personality-select:hover {
+            border-color: var(--accent);
+        }
+
+        .info-text {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-align: center;
+            line-height: 1.4;
+            margin-top: 15px;
+        }
+
+
+
+
+
+
+
+        .hidden {
+            display: none;
+        }
+
+        /* Dynamic sizing - no fixed heights */
+        .container {
+            height: auto;
+            min-height: auto;
+        }
+
+        /* Remove any scrollbars */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+
+        * {
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body data-theme="dark">
+    <div class="container">
+        <div class="header">
+            <div class="logo">CoDei</div>
+            <button class="theme-toggle" id="themeToggle">🌙 Dark</button>
+        </div>
+
+        <div class="status-card">
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span class="status-text" id="statusText">Ready to Start</span>
+            </div>
+        </div>
+
+        <div class="personality-section">
+            <div class="personality-label">Tutor Personality</div>
+            <select class="personality-select" id="personalitySelect">
+                <option value="mentor">Mentor</option>
+                <option value="sarcastic">Sarcastic</option>
+                <option value="fun">Fun</option>
+                <option value="grade-level">Grade-Level</option>
+            </select>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="startBtn">Start Monitoring</button>
+            <button class="btn danger hidden" id="stopBtn">Stop Monitoring</button>
+        </div>
+
+        <div class="info-text">
+            CoDei - Universal AI Learning Conscience that intercepts solution requests across all platforms and promotes learning over copying.
+        </div>
+    </div>
+
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        class CoDeiUI {
+            constructor() {
+                this.isMonitoring = false;
+                this.currentTheme = 'dark';
+                this.initializeEventListeners();
+                this.setupIPCListeners();
+                this.loadTheme();
+                this.updateThemeToggle();
+            }
+
+            initializeEventListeners() {
+                document.getElementById('startBtn').addEventListener('click', () => {
+                    this.startMonitoring();
+                });
+
+                document.getElementById('stopBtn').addEventListener('click', () => {
+                    this.stopMonitoring();
+                });
+
+                document.getElementById('personalitySelect').addEventListener('change', (e) => {
+                    this.setPersonality(e.target.value);
+                });
+
+                document.getElementById('themeToggle').addEventListener('click', () => {
+                    this.toggleTheme();
+                });
+            }
+
+            setupIPCListeners() {
+                // IPC listeners can be added here when needed
+            }
+
+
+
+
+
+            toggleTheme() {
+                this.currentTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
+                document.body.setAttribute('data-theme', this.currentTheme);
+                localStorage.setItem('theme', this.currentTheme);
+                this.updateThemeToggle();
+            }
+
+            loadTheme() {
+                const savedTheme = localStorage.getItem('theme') || 'dark';
+                document.body.setAttribute('data-theme', savedTheme);
+                this.currentTheme = savedTheme;
+            }
+
+            updateThemeToggle() {
+                const themeToggle = document.getElementById('themeToggle');
+                if (this.currentTheme === 'dark') {
+                    themeToggle.textContent = '🌙 Dark';
+                } else {
+                    themeToggle.textContent = '☀️ Light';
+                }
+            }
+
+            async setPersonality(personality) {
+                try {
+                    await ipcRenderer.invoke('set-personality', personality);
+                } catch (error) {
+                    console.error('Failed to set personality:', error);
+                }
+            }
+
+            async startMonitoring() {
+                try {
+                    const result = await ipcRenderer.invoke('start-monitoring', {
+                        watchPaths: []
+                    });
+
+                    if (result.success) {
+                        this.isMonitoring = true;
+                        this.updateUI(true);
+                    } else {
+                        console.error('Error starting monitoring:', result.error);
+                    }
+                } catch (error) {
+                    console.error('Failed to start monitoring:', error);
+                }
+            }
+
+            async stopMonitoring() {
+                try {
+                    const result = await ipcRenderer.invoke('stop-monitoring');
+                    
+                    if (result.success) {
+                        this.isMonitoring = false;
+                        this.updateUI(false);
+                    }
+                } catch (error) {
+                    console.error('Failed to stop monitoring:', error);
+                }
+            }
+
+            updateUI(isActive) {
+                const statusDot = document.getElementById('statusDot');
+                const statusText = document.getElementById('statusText');
+                const startBtn = document.getElementById('startBtn');
+                const stopBtn = document.getElementById('stopBtn');
+
+                if (isActive) {
+                    statusDot.classList.add('active');
+                    statusDot.classList.remove('inactive');
+                    statusText.textContent = 'Monitoring Active';
+                    startBtn.classList.add('hidden');
+                    stopBtn.classList.remove('hidden');
+                } else {
+                    statusDot.classList.add('inactive');
+                    statusDot.classList.remove('active');
+                    statusText.textContent = 'Ready to Start';
+                    startBtn.classList.remove('hidden');
+                    stopBtn.classList.add('hidden');
+                }
+            }
+
+        }
+
+        // Initialize the UI
+        new CoDeiUI();
+    </script>
+</body>
+</html>
