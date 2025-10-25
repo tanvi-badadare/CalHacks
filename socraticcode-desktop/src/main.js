@@ -4,6 +4,7 @@ const FileMonitor = require('./services/FileMonitor');
 const KeystrokeMonitor = require('./services/KeystrokeMonitor');
 const UniversalCoDeiService = require('./services/UniversalCoDeiService');
 const ScreenOverlay = require('./services/ScreenOverlay');
+const ScreenReader = require('./services/ScreenReader');
 
 class CoDeiApp {
   constructor() {
@@ -13,6 +14,7 @@ class CoDeiApp {
     this.keystrokeMonitor = null;
     this.universalService = null;
     this.screenOverlay = null;
+    this.screenReader = null;
     this.isDev = process.argv.includes('--dev');
   }
 
@@ -141,6 +143,19 @@ class CoDeiApp {
   async initializeServices() {
     // Initialize Screen Overlay for visual hints
     this.screenOverlay = new ScreenOverlay();
+    
+    // Initialize Screen Reader for reading screen content
+    this.screenReader = new ScreenReader();
+    this.screenReader.on('contentDetected', (data) => {
+      console.log('📸 Content detected:', data);
+      
+      // Show hint on screen overlay
+      this.screenOverlay.showHint({
+        message: data.hint,
+        level: 1,
+        position: { x: 50, y: 50 },
+      });
+    });
     
     // Initialize Universal CoDei Service
     this.universalService = new UniversalCoDeiService();
@@ -273,6 +288,9 @@ class CoDeiApp {
         await this.fileMonitor.startMonitoring(options.watchPaths);
         await this.keystrokeMonitor.startMonitoring();
         
+        // Start screen reading
+        await this.screenReader.startReading();
+        
         // Show the screen overlay for hints
         await this.screenOverlay.showOverlay();
         
@@ -287,6 +305,9 @@ class CoDeiApp {
       try {
         await this.fileMonitor.stopMonitoring();
         await this.keystrokeMonitor.stopMonitoring();
+        
+        // Stop screen reading
+        this.screenReader.stopReading();
         
         // Hide the screen overlay
         this.screenOverlay.hideOverlay();
