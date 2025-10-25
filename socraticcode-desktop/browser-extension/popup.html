@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CoDei Learning Conscience</title>
+  <style>
+    body {
+      width: 350px;
+      min-height: 400px;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a1a;
+      color: white;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #00d4aa, #00a085);
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    
+    .subtitle {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    
+    .content {
+      padding: 20px;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    
+    .stat {
+      background: #2d2d2d;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 20px;
+      font-weight: bold;
+      color: #00d4aa;
+      display: block;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+    
+    .personality-selector {
+      margin-bottom: 20px;
+    }
+    
+    .personality-selector label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .personality-selector select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #404040;
+      border-radius: 6px;
+      background: #2d2d2d;
+      color: white;
+      font-size: 14px;
+    }
+    
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+      background: #00d4aa;
+      color: #1a1a1a;
+    }
+    
+    .btn-primary:hover {
+      background: #00a085;
+    }
+    
+    .btn-secondary {
+      background: #2d2d2d;
+      color: white;
+      border: 1px solid #404040;
+    }
+    
+    .btn-secondary:hover {
+      background: #404040;
+    }
+    
+    .status {
+      text-align: center;
+      padding: 12px;
+      background: #2d2d2d;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+    
+    .status.active {
+      background: #1a4d3a;
+      border: 1px solid #00d4aa;
+    }
+    
+    .status-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .status.active .status-text {
+      color: #00d4aa;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🎓 CoDei</div>
+    <div class="subtitle">Learning Conscience</div>
+  </div>
+  
+  <div class="content">
+    <div class="status active" id="status">
+      <div class="status-text">Active & Monitoring</div>
+    </div>
+    
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-value" id="interceptions">0</span>
+        <span class="stat-label">Interceptions</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="streak">0</span>
+        <span class="stat-label">Learning Streak</span>
+      </div>
+    </div>
+    
+    <div class="personality-selector">
+      <label for="personality">Learning Personality:</label>
+      <select id="personality">
+        <option value="mentor">Mentor (Encouraging)</option>
+        <option value="sarcastic">Sarcastic (Playful)</option>
+        <option value="fun">Fun (Energetic)</option>
+        <option value="grade-level">Academic (Formal)</option>
+      </select>
+    </div>
+    
+    <div class="actions">
+      <button class="btn btn-primary" id="testBtn">Test Extension</button>
+      <button class="btn btn-secondary" id="settingsBtn">Settings</button>
+      <button class="btn btn-secondary" id="helpBtn">Help</button>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
