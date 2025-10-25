@@ -300,6 +300,11 @@ class CoDeiApp {
         // Show the screen overlay for hints
         await this.screenOverlay.showOverlay();
         
+        // Hide the main window when monitoring starts
+        if (this.mainWindow) {
+          this.mainWindow.hide();
+        }
+        
         this.updateTrayIcon(true); // Update tray to show active
         return { success: true };
       } catch (error) {
@@ -317,6 +322,11 @@ class CoDeiApp {
         
         // Hide the screen overlay
         this.screenOverlay.hideOverlay();
+        
+        // Show the main window when monitoring stops
+        if (this.mainWindow) {
+          this.mainWindow.show();
+        }
         
         this.updateTrayIcon(false); // Update tray to show inactive
         return { success: true };
@@ -341,6 +351,13 @@ class CoDeiApp {
 
     ipcMain.handle('get-learning-profile', async () => {
       return this.universalService.learningProfile;
+    });
+
+    // Handle sidebar toggle from indicator dot
+    ipcMain.on('toggle-sidebar', () => {
+      if (this.screenOverlay) {
+        this.screenOverlay.toggleSidebar();
+      }
     });
   }
 
