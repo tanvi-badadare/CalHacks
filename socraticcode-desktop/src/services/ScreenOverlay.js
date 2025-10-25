@@ -17,8 +17,8 @@ class ScreenOverlay extends EventEmitter {
 
       this.screenBounds = { width, height };
 
-      // Create an overlay window that covers the right side (25% width)
-      const sidebarWidth = Math.floor(width * 0.25);
+      // Create an overlay window that covers the right side (400px width like Cursor)
+      const sidebarWidth = 400;
       this.overlayWindow = new BrowserWindow({
         width: sidebarWidth,
         height: height,
