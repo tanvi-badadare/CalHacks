@@ -3,6 +3,7 @@ const path = require('path');
 const FileMonitor = require('./services/FileMonitor');
 const KeystrokeMonitor = require('./services/KeystrokeMonitor');
 const UniversalCoDeiService = require('./services/UniversalCoDeiService');
+const ScreenOverlay = require('./services/ScreenOverlay');
 
 class CoDeiApp {
   constructor() {
@@ -11,6 +12,7 @@ class CoDeiApp {
     this.fileMonitor = null;
     this.keystrokeMonitor = null;
     this.universalService = null;
+    this.screenOverlay = null;
     this.isDev = process.argv.includes('--dev');
   }
 
@@ -137,16 +139,34 @@ class CoDeiApp {
   }
 
   async initializeServices() {
+    // Initialize Screen Overlay for visual hints
+    this.screenOverlay = new ScreenOverlay();
+    
     // Initialize Universal CoDei Service
     this.universalService = new UniversalCoDeiService();
     
     // Set up event listeners for universal service
     this.universalService.on('solutionIntercepted', (data) => {
       console.log('🌐 Universal solution intercepted:', data);
+      
+      // Show hint on screen overlay
+      this.screenOverlay.showHint({
+        message: data.response.learningResponse || "Let's think about this together!",
+        level: data.response.hintLevel || 1,
+        position: { x: 50, y: 50 },
+        highlight: { x: 100, y: 100, width: 300, height: 50 }
+      });
     });
     
     this.universalService.on('codeCopied', (data) => {
       console.log('📋 Code copying detected:', data);
+      
+      // Show hint about learning
+      this.screenOverlay.showHint({
+        message: "Think about why this code works! Understanding > Copying 💡",
+        level: 2,
+        position: { x: 50, y: 100 },
+      });
     });
     
     this.universalService.on('manualInvocation', (data) => {
@@ -252,6 +272,10 @@ class CoDeiApp {
       try {
         await this.fileMonitor.startMonitoring(options.watchPaths);
         await this.keystrokeMonitor.startMonitoring();
+        
+        // Show the screen overlay for hints
+        await this.screenOverlay.showOverlay();
+        
         this.updateTrayIcon(true); // Update tray to show active
         return { success: true };
       } catch (error) {
@@ -263,6 +287,10 @@ class CoDeiApp {
       try {
         await this.fileMonitor.stopMonitoring();
         await this.keystrokeMonitor.stopMonitoring();
+        
+        // Hide the screen overlay
+        this.screenOverlay.hideOverlay();
+        
         this.updateTrayIcon(false); // Update tray to show inactive
         return { success: true };
       } catch (error) {
