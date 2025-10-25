@@ -147,14 +147,20 @@ class CoDeiApp {
     // Initialize Screen Reader for reading screen content
     this.screenReader = new ScreenReader();
     this.screenReader.on('contentDetected', (data) => {
-      console.log('📸 Content detected:', data);
-      
-      // Show hint on screen overlay
-      this.screenOverlay.showHint({
-        message: data.hint,
-        level: 1,
-        position: { x: 50, y: 50 },
-      });
+      try {
+        console.log('📸 Content detected:', data);
+        
+        // Show hint on screen overlay only if it's initialized
+        if (this.screenOverlay && this.screenOverlay.isActive) {
+          this.screenOverlay.showHint({
+            message: data.hint,
+            level: 1,
+            position: { x: 50, y: 50 },
+          });
+        }
+      } catch (error) {
+        console.error('Error handling content detection:', error);
+      }
     });
     
     // Initialize Universal CoDei Service

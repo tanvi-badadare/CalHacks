@@ -85,8 +85,8 @@ class ScreenReader extends EventEmitter {
       }
     ];
 
-    // Randomly generate a hint every few seconds (in real app, would be based on actual screen content)
-    if (Math.random() < 0.3) {
+    // Randomly generate a hint occasionally (reduced probability to prevent spam)
+    if (Math.random() < 0.05) { // Reduced from 0.3 to 0.05 (20% chance every 3 seconds)
       const content = contentTypes[Math.floor(Math.random() * contentTypes.length)];
       
       if (content.snippet !== this.lastContent) {
