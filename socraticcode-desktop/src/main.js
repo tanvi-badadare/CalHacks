@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, globalShortcut } = require('electron');
 const path = require('path');
+const os = require('os');
 const FileMonitor = require('./services/FileMonitor');
 const KeystrokeMonitor = require('./services/KeystrokeMonitor');
 const UniversalCoDeiService = require('./services/UniversalCoDeiService');
@@ -138,12 +139,52 @@ class CoDeiApp {
     this.tray.setContextMenu(contextMenu);
   }
 
+  registerGlobalHotkeys() {
+    // Cross-platform global hotkey registration
+    const isMac = os.platform() === 'darwin';
+    const hotkey = isMac ? 'Cmd+Shift+C' : 'Ctrl+Shift+C';
+    
+    try {
+      const registered = globalShortcut.register(hotkey, () => {
+        console.log(`🔑 CoDei invoked via ${hotkey}`);
+        
+        // Show main window if hidden
+        if (this.mainWindow) {
+          if (this.mainWindow.isVisible()) {
+            this.mainWindow.hide();
+          } else {
+            this.mainWindow.show();
+            this.mainWindow.focus();
+          }
+        }
+        
+        // Trigger manual invocation
+        this.universalService.emit('manualInvocation', {
+          platform: 'global_hotkey',
+          hotkey: hotkey,
+          timestamp: new Date().toISOString()
+        });
+      });
+      
+      if (registered) {
+        console.log(`🔑 Global hotkeys registered: ${hotkey} to invoke CoDei`);
+      } else {
+        console.log(`⚠️ Failed to register global hotkey: ${hotkey}`);
+      }
+    } catch (error) {
+      console.error('❌ Error registering global hotkeys:', error);
+    }
+  }
+
   async initializeServices() {
     // Initialize Screen Overlay for visual hints
     this.screenOverlay = new ScreenOverlay();
     
     // Initialize Universal CoDei Service
     this.universalService = new UniversalCoDeiService();
+    
+    // Register cross-platform global hotkeys
+    this.registerGlobalHotkeys();
     
     // Set up event listeners for universal service
     this.universalService.on('solutionIntercepted', (data) => {
@@ -332,8 +373,9 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  // Keep the app running even when all windows are closed
-  if (process.platform !== 'darwin') {
+  // Keep the app running even when all windows are closed (both Mac and Windows)
+  // Only quit on Linux if no windows are open
+  if (process.platform === 'linux') {
     app.quit();
   }
 });
@@ -348,4 +390,6 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   app.isQuiting = true;
+  // Clean up global shortcuts
+  globalShortcut.unregisterAll();
 });

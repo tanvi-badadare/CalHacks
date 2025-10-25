@@ -110,8 +110,17 @@ class FileMonitor extends EventEmitter {
 
   getDefaultWatchPaths() {
     const homeDir = require('os').homedir();
-    // Only monitor specific subdirectories to avoid "too many files" error
-    const projectPath = path.join(homeDir, 'Desktop', 'CalHacks');
+    const os = require('os');
+    
+    // Cross-platform project path detection
+    let projectPath;
+    if (os.platform() === 'win32') {
+      // Windows: Look for CalHacks in common locations
+      projectPath = path.join(homeDir, 'Desktop', 'CalHacks');
+    } else {
+      // macOS/Linux: Use Desktop
+      projectPath = path.join(homeDir, 'Desktop', 'CalHacks');
+    }
     
     // Check if the project exists and get specific subdirectories
     try {

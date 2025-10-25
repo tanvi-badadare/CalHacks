@@ -86,9 +86,8 @@ class UniversalCoDeiService extends EventEmitter {
   async initializeGlobalHotkeys() {
     console.log('⌨️ Setting up global hotkeys...');
     
-    // Global hotkey to invoke CoDei anywhere
-    // This would use system-level hotkey registration
-    this.registerGlobalHotkeys();
+    // Global hotkey registration is now handled in main.js for cross-platform compatibility
+    console.log('🔑 Global hotkeys registered: Cmd+Shift+C (Mac) or Ctrl+Shift+C (Windows) to invoke CoDei');
   }
 
   monitorCodingWebsites() {
