@@ -43,10 +43,18 @@ class ScreenOverlay extends EventEmitter {
         ignoreMouseEvents: false,
         hasShadow: false,
         visibleOnAllWorkspaces: true,
+        fullscreenable: false,
+        simpleFullscreen: false,
       });
       
       // Make the sidebar solid and clickable
       this.overlayWindow.setIgnoreMouseEvents(false);
+
+      // Set fullscreen access on macOS for universal visibility
+      if (process.platform === 'darwin') {
+        this.overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        console.log('🎯 Sidebar set to be visible on fullscreen apps');
+      }
 
       // Load overlay HTML
       this.overlayWindow.loadURL(`file://${__dirname}/../overlay/index.html`);
@@ -87,7 +95,15 @@ class ScreenOverlay extends EventEmitter {
       ignoreMouseEvents: false,
       hasShadow: false,
       visibleOnAllWorkspaces: true,
+      fullscreenable: false,
+      simpleFullscreen: false,
     });
+
+          // Set fullscreen access on macOS for universal visibility
+      if (process.platform === 'darwin') {
+        this.indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        console.log('🎯 Indicator set to be visible on fullscreen apps');
+      }
 
     // Create HTML for the indicator
     const indicatorHTML = `
