@@ -41,6 +41,33 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            justify-content: space-between;
+        }
+        
+        .sidebar-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .collapse-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+        
+        .collapse-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(0, 212, 170, 0.3);
         }
         
         .hint-log {
@@ -141,8 +168,13 @@
 <body>
     <div class="sidebar">
         <div class="sidebar-header">
-            <span>🎓</span>
-            <span>CoDei</span>
+            <div>
+                <span>🎓</span>
+                <span>CoDei</span>
+            </div>
+            <div class="sidebar-controls">
+                <button class="collapse-btn" id="collapseBtn" title="Collapse Sidebar">◀</button>
+            </div>
         </div>
         <div class="hint-log" id="hintLog">
             <div class="no-hints">Waiting for hints...</div>
@@ -154,6 +186,11 @@
     <script>
         const { ipcRenderer } = require('electron');
         let hintTimeout = null;
+
+        // Handle collapse button
+        document.getElementById('collapseBtn').addEventListener('click', () => {
+            ipcRenderer.send('toggle-sidebar');
+        });
 
         // Listen for hint messages from main process
         ipcRenderer.on('show-hint', (event, hintData) => {
