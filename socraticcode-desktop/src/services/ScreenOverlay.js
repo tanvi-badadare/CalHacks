@@ -52,8 +52,12 @@ class ScreenOverlay extends EventEmitter {
 
       // Set fullscreen access on macOS for universal visibility
       if (process.platform === 'darwin') {
-        this.overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        console.log('🎯 Sidebar set to be visible on fullscreen apps');
+        try {
+          this.overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+          console.log('🎯 Sidebar set to be visible on fullscreen apps');
+        } catch (error) {
+          console.error('Failed to set sidebar visibility:', error);
+        }
       }
 
       // Load overlay HTML
@@ -101,8 +105,13 @@ class ScreenOverlay extends EventEmitter {
 
           // Set fullscreen access on macOS for universal visibility
       if (process.platform === 'darwin') {
-        this.indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        console.log('🎯 Indicator set to be visible on fullscreen apps');
+        try {
+          this.indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+          console.log('🎯 Indicator set to be visible on fullscreen apps');
+          console.log('📱 Make sure Electron has Screen Recording permission in System Preferences');
+        } catch (error) {
+          console.error('Failed to set indicator visibility:', error);
+        }
       }
 
     // Create HTML for the indicator

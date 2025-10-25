@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, systemPreferences } = require('electron');
 const path = require('path');
 const FileMonitor = require('./services/FileMonitor');
 const KeystrokeMonitor = require('./services/KeystrokeMonitor');
@@ -361,9 +361,27 @@ class CoDeiApp {
     });
   }
 
+  async requestScreenPermissions() {
+    if (process.platform === 'darwin') {
+      try {
+        // Request screen recording permission
+        const status = systemPreferences.getMediaAccessStatus('screen');
+        console.log('📱 Screen recording permission status:', status);
+        
+        if (status !== 'granted') {
+          console.log('⚠️  Screen recording permission not granted. Requesting...');
+          await systemPreferences.askForMediaAccess('screen');
+        }
+      } catch (error) {
+        console.error('Failed to request screen recording permission:', error);
+      }
+    }
+  }
+
   async initialize() {
     this.createTray(); // Create tray first
     this.createWindow();
+    await this.requestScreenPermissions(); // Request screen recording permissions
     this.initializeServices();
     this.setupIPC();
   }
