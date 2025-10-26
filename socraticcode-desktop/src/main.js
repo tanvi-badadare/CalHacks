@@ -4,9 +4,35 @@ const FileMonitor = require('./services/FileMonitor');
 const KeystrokeMonitor = require('./services/KeystrokeMonitor');
 const UniversalCoDeiService = require('./services/UniversalCoDeiService');
 const ScreenOverlay = require('./services/ScreenOverlay');
-const ScreenReader = require('./services/ScreenReader');
+const ScreenReader = require('./services/ScreenReader_ENHANCED');
+const RAGHintService = require('./services/RAGHintService');
+const SmartHintEngine = require('./services/SmartHintEngine');
 
-class CoDeiApp {
+// Handle EPIPE errors specifically to prevent crashes
+process.on('uncaughtException', (error) => {
+  if (error.code === 'EPIPE') {
+    // Silently handle EPIPE errors
+    return;
+  }
+  // Log other errors
+  console.error('Uncaught exception:', error);
+});
+
+process.stdout.on('error', (error) => {
+  if (error.code === 'EPIPE') {
+    // Ignore EPIPE on stdout
+    return;
+  }
+});
+
+process.stderr.on('error', (error) => {
+  if (error.code === 'EPIPE') {
+    // Ignore EPIPE on stderr
+    return;
+  }
+});
+
+class SocraticApp {
   constructor() {
     this.mainWindow = null;
     this.tray = null;
@@ -15,8 +41,8 @@ class CoDeiApp {
     this.universalService = null;
     this.screenOverlay = null;
     this.screenReader = null;
+    this.ragHintService = null;
     this.isDev = process.argv.includes('--dev');
-    this.isStartingMonitoring = false;
   }
 
   createWindow() {
@@ -49,25 +75,15 @@ class CoDeiApp {
     });
 
     // Load the app
-    console.log('🟢 IPC: Loading renderer HTML file');
     this.mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
 
     // Show window when ready
     this.mainWindow.once('ready-to-show', () => {
-      console.log('🟢 IPC: Main window ready to show');
       this.mainWindow.show();
       
-      // Always open dev tools for debugging
-      this.mainWindow.webContents.openDevTools();
-    });
-
-    // Add debugging for renderer events
-    this.mainWindow.webContents.on('did-finish-load', () => {
-      console.log('🟢 IPC: Renderer finished loading');
-    });
-
-    this.mainWindow.webContents.on('dom-ready', () => {
-      console.log('🟢 IPC: Renderer DOM ready');
+      if (this.isDev) {
+        this.mainWindow.webContents.openDevTools();
+      }
     });
 
     // Handle window closed
@@ -100,7 +116,7 @@ class CoDeiApp {
     this.tray = new Tray(trayIcon);
     this.updateTrayIcon(false);
     
-        this.tray.setToolTip('CoDei - AI Coding Tutor');
+        this.tray.setToolTip('Socratic - AI Coding Tutor');
     
     this.tray.on('click', () => {
       this.mainWindow.show();
@@ -124,7 +140,7 @@ class CoDeiApp {
     // Update context menu
         const contextMenu = Menu.buildFromTemplate([
           {
-            label: 'CoDei',
+            label: 'Socratic',
             enabled: false
           },
           { type: 'separator' },
@@ -140,7 +156,7 @@ class CoDeiApp {
           },
           { type: 'separator' },
           {
-            label: 'Quit CoDei',
+            label: 'Quit Socratic',
             click: () => {
               app.isQuiting = true;
               app.quit();
@@ -152,66 +168,134 @@ class CoDeiApp {
   }
 
   async initializeServices() {
-    // Initialize Screen Overlay for visual hints (but don't show it yet)
+    // Initialize RAG Hint Service
+    this.ragHintService = new RAGHintService('http://127.0.0.1:5001');
+    
+    // Check RAG service connection
+    const isConnected = await this.ragHintService.checkConnection();
+    console.log(`🤖 RAG Hint Service: ${isConnected ? 'Connected ✅' : 'Disconnected ⚠️'}`);
+    
+    // Initialize Screen Overlay for visual hints
     this.screenOverlay = new ScreenOverlay();
     
-    // Initialize Screen Reader for reading screen content (but don't start it yet)
-    this.screenReader = new ScreenReader();
-    this.screenReader.on('contentDetected', (data) => {
+    // Track current personality setting
+    this.currentPersonality = 'mentor';
+    this.currentHintLevel = 1;
+    
+    // Initialize Smart Hint Engine (detects when user is stuck)
+    this.smartHintEngine = new SmartHintEngine();
+    this.smartHintEngine.on('user-stuck', async (data) => {
+      console.log('🆘 User appears stuck:', data.reason, '- Offering hint');
+      
+      // Generate a contextual hint
       try {
-        console.log('📸 Content detected:', data);
+        const hints = await this.ragHintService.generateHints({
+          topic: data.context.topic,
+          question: data.context.question,
+          codeContext: data.codeSnapshot,
+          personality: this.currentPersonality,
+          hint_level: this.currentHintLevel
+        });
         
-        // Show hint on screen overlay only if it's initialized and active
-        if (this.screenOverlay && this.screenOverlay.isActive) {
-          this.screenOverlay.showHint({
-            message: data.hint,
-            level: 1,
-            position: { x: 50, y: 50 },
+        if (hints && !this.screenOverlay.overlayWindow.isDestroyed()) {
+          this.screenOverlay.overlayWindow.webContents.send('show-stuck-hint', {
+            hint: hints.progressive_hints[0],
+            reason: data.reason,
+            severity: data.severity
           });
         }
       } catch (error) {
-        console.error('Error handling content detection:', error.message);
-        // Don't let content detection errors crash the app
+        console.error('Error generating stuck hint:', error);
       }
     });
     
-    // Initialize Universal CoDei Service
-    this.universalService = new UniversalCoDeiService();
+    this.smartHintEngine.on('hint-requested', async (data) => {
+      console.log('🙋 User requested hint manually');
+      // Handle manual hint requests
+    });
+    
+    // Initialize Enhanced Screen Reader for reading screen content (uses OCR + Claude backend)
+    this.screenReader = new ScreenReader('http://127.0.0.1:8000', this.currentPersonality);
+    this.screenReader.on('contentDetected', (data) => {
+      try {
+        console.log('📸 Coding content detected:', {
+          topic: data.topic,
+          question: data.question,
+          personality: data.hints?.personality,
+          progressiveHints: data.hints?.progressiveHints?.length || 0
+        });
+        
+        // Feed Smart Hint Engine with code updates (for real-time stuck detection)
+        if (data.code) {
+          this.smartHintEngine.updateCodeSnapshot(data.code);
+          this.smartHintEngine.updateContext(data.topic, data.question, data.code);
+        }
+        
+        // Send progressive hints to sidebar overlay
+        if (this.screenOverlay && this.screenOverlay.isActive) {
+          // Send the hint data to the overlay window
+          if (this.screenOverlay.overlayWindow && !this.screenOverlay.overlayWindow.isDestroyed()) {
+            try {
+              this.screenOverlay.overlayWindow.webContents.send('show-progressive-hints', {
+                topic: data.topic,
+                question: data.question,
+                code: data.code || '',  // Include code for chat context
+                hints: data.hints,
+                personality: data.hints?.personality || this.currentPersonality
+              });
+            } catch (error) {
+              console.log('Failed to send hints to overlay (window may be destroyed):', error.message);
+            }
+          }
+        }
+        
+        // Also notify main window
+        if (this.mainWindow && this.mainWindow.webContents) {
+          this.mainWindow.webContents.send('coding-detected', data);
+        }
+      } catch (error) {
+        console.error('Error handling content detection:', error);
+      }
+    });
+    
+    // Initialize Universal CoDei Service with RAG integration
+    this.universalService = new UniversalCoDeiService(this.ragHintService);
     
     // Set up event listeners for universal service
     this.universalService.on('solutionIntercepted', (data) => {
       console.log('🌐 Universal solution intercepted:', data);
       
-      // Show hint on screen overlay only if it's active
-      if (this.screenOverlay && this.screenOverlay.isActive) {
-        this.screenOverlay.showHint({
-          message: data.response.learningResponse || "Let's think about this together!",
-          level: data.response.hintLevel || 1,
-          position: { x: 50, y: 50 },
-          highlight: { x: 100, y: 100, width: 300, height: 50 }
-        });
-      }
+      // Show hint on screen overlay
+      this.screenOverlay.showHint({
+        message: data.response.learningResponse || "Let's think about this together!",
+        level: data.response.hintLevel || 1,
+        position: { x: 50, y: 50 },
+        highlight: { x: 100, y: 100, width: 300, height: 50 }
+      });
     });
     
     this.universalService.on('codeCopied', (data) => {
       console.log('📋 Code copying detected:', data);
       
-      // Show hint about learning only if overlay is active
-      if (this.screenOverlay && this.screenOverlay.isActive) {
-        this.screenOverlay.showHint({
-          message: "Think about why this code works! Understanding > Copying 💡",
-          level: 2,
-          position: { x: 50, y: 100 },
-        });
-      }
+      // Show hint about learning
+      this.screenOverlay.showHint({
+        message: "Think about why this code works! Understanding > Copying 💡",
+        level: 2,
+        position: { x: 50, y: 100 },
+      });
     });
     
     this.universalService.on('manualInvocation', (data) => {
-      console.log('🔑 CoDei manually invoked:', data);
+      console.log('🔑 Socratic manually invoked:', data);
     });
     
-    // Don't initialize the universal service yet - wait for user to start monitoring
-    console.log('✅ Universal CoDei Service ready for initialization');
+    // Initialize the universal service
+    const success = await this.universalService.initialize();
+    if (success) {
+      console.log('✅ Universal Socratic Service initialized');
+    } else {
+      console.log('⚠️ Universal Socratic Service initialization failed');
+    }
     
     // Initialize file monitoring for local development
     this.fileMonitor = new FileMonitor();
@@ -229,21 +313,67 @@ class CoDeiApp {
       }
     });
 
-    // Initialize keystroke monitoring
+    // Initialize keystroke monitoring for contextual hints
     this.keystrokeMonitor = new KeystrokeMonitor();
-    this.keystrokeMonitor.on('patternDetected', (pattern) => {
-      console.log('Pattern detected:', pattern);
+    this.currentTypingContext = {
+      buffer: [],
+      lastAnalysis: Date.now()
+    };
+    
+    this.keystrokeMonitor.on('keystrokePattern', (data) => {
+      console.log('⌨️ Keystroke pattern detected:', data.patterns);
       
-      // Check for solution request patterns in keystrokes
-      if (this.isSolutionRequestPattern(pattern)) {
+      // Update typing context
+      this.currentTypingContext.buffer = data.recentKeystrokes || [];
+      this.currentTypingContext.context = data.context;
+      this.currentTypingContext.patterns = data.patterns;
+      
+      // Provide contextual hints based on typing behavior
+      this.provideContextualHints(data);
+      
+      // Check for solution request patterns
+      if (this.isSolutionRequestPattern(data.patterns)) {
         this.universalService.interceptSolutionRequest({
           platform: 'keystroke',
           type: 'pattern_detected',
-          content: pattern,
+          content: data.patterns,
           context: 'Keystroke pattern indicating solution request'
         });
       }
     });
+    
+    // Start keystroke monitoring
+    this.keystrokeMonitor.startMonitoring();
+    console.log('⌨️ Keystroke monitoring initialized');
+  }
+  
+  // Provide contextual hints based on typing patterns
+  provideContextualHints(keystrokeData) {
+    const { patterns, context } = keystrokeData;
+    
+    // If user is hesitating (lots of backspaces), offer gentle hints
+    if (patterns.some(p => p.type === 'hesitation')) {
+      console.log('🤔 User seems stuck, preparing hint...');
+      
+      // Trigger screen analysis to provide contextual help
+      if (this.screenReader && this.screenReader.isReading) {
+        // The screen reader will automatically provide hints based on current screen content
+        console.log('📸 Screen reader active - hints will be based on current question');
+      }
+    }
+    
+    // If syntax error patterns detected, offer specific help
+    if (patterns.some(p => p.type === 'syntax_error')) {
+      console.log('⚠️ Potential syntax error detected');
+      
+      if (this.screenOverlay && this.screenOverlay.isActive) {
+        this.screenOverlay.showHint({
+          message: "Check your syntax - are all brackets/parentheses closed?",
+          level: 1,
+          position: { x: 50, y: 150 }
+        });
+      }
+    }
   }
 
   showNotification(hint) {
@@ -254,14 +384,14 @@ class CoDeiApp {
     // Also show system notification using Electron's Notification
     try {
       const notification = new Notification({
-        title: 'CoDei Hint',
+        title: 'Socratic Hint',
         body: hint.message,
         icon: path.join(__dirname, '../assets/icon.png')
       });
       
       notification.show();
     } catch (error) {
-      console.log('CoDei Hint:', hint.message);
+      console.log('Socratic Hint:', hint.message);
       console.log('Note: System notifications not available');
     }
   }
@@ -302,25 +432,6 @@ class CoDeiApp {
     // Handle requests from renderer process
     ipcMain.handle('start-monitoring', async (event, options) => {
       try {
-        console.log('🟢 IPC: start-monitoring handler called');
-        
-        // Prevent multiple simultaneous start-monitoring calls
-        if (this.isStartingMonitoring) {
-          console.log('⚠️ Start monitoring already in progress, skipping');
-          return { success: false, error: 'Start monitoring already in progress' };
-        }
-        
-        this.isStartingMonitoring = true;
-        // Initialize the universal service when user starts monitoring
-        if (!this.universalService.isActive) {
-          const success = await this.universalService.initialize();
-          if (!success) {
-            console.log('⚠️ Universal CoDei Service initialization failed');
-            return { success: false, error: 'Failed to initialize Universal CoDei Service' };
-          }
-          console.log('✅ Universal CoDei Service initialized');
-        }
-        
         await this.fileMonitor.startMonitoring(options.watchPaths);
         await this.keystrokeMonitor.startMonitoring();
         
@@ -330,21 +441,18 @@ class CoDeiApp {
         // Show the screen overlay for hints
         await this.screenOverlay.showOverlay();
         
-        // Note: Theme will be applied when overlay is created
-        
-        // Send success response to renderer first
-        console.log('🟢 IPC: Sending monitoring-started event to renderer');
-        event.sender.send('monitoring-started', { success: true });
-        console.log('🟢 IPC: monitoring-started event sent to renderer');
-        
-        // Keep main window visible - user can manually hide it if desired
-        console.log('🟢 IPC: Monitoring started - main window remains visible');
+        // DON'T hide the main window - user needs to see controls and chat
+        // Keep it visible so they can interact with the overlay
         
         this.updateTrayIcon(true); // Update tray to show active
-        this.isStartingMonitoring = false;
+        
+        // Send event to renderer to update UI
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('monitoring-started', { success: true });
+        }
+        
         return { success: true };
       } catch (error) {
-        this.isStartingMonitoring = false;
         return { success: false, error: error.message };
       }
     });
@@ -360,19 +468,18 @@ class CoDeiApp {
         // Hide the screen overlay
         this.screenOverlay.hideOverlay();
         
-        // Send monitoring stopped event to renderer
-        console.log('🟢 IPC: Sending monitoring-stopped event to renderer');
-        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          this.mainWindow.webContents.send('monitoring-stopped', { success: true });
-          console.log('🟢 IPC: monitoring-stopped event sent to renderer');
-        }
-        
         // Show the main window when monitoring stops
         if (this.mainWindow) {
           this.mainWindow.show();
         }
         
         this.updateTrayIcon(false); // Update tray to show inactive
+        
+        // Send event to renderer to update UI
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('monitoring-stopped', { success: true });
+        }
+        
         return { success: true };
       } catch (error) {
         return { success: false, error: error.message };
@@ -387,15 +494,16 @@ class CoDeiApp {
       return this.universalService.getServiceStatus();
     });
 
-    ipcMain.handle('get-overlay-status', async () => {
-      return {
-        isActive: this.screenOverlay ? this.screenOverlay.isActive : false
-      };
-    });
-
     ipcMain.handle('set-personality', async (event, personality) => {
       // Update universal service personality
       this.universalService.learningProfile.personality = personality;
+      // Store current personality for hint generation
+      this.currentPersonality = personality;
+      // Update screen reader personality
+      if (this.screenReader) {
+        this.screenReader.setPersonality(personality);
+      }
+      console.log(`👤 Personality set to: ${personality}`);
       return true;
     });
 
@@ -403,24 +511,146 @@ class CoDeiApp {
       return this.universalService.learningProfile;
     });
 
+    ipcMain.handle('generate-rag-hints', async (event, code, options) => {
+      if (this.ragHintService) {
+        return await this.ragHintService.generateHints(code, options);
+      }
+      return { success: false, error: 'RAG service not initialized' };
+    });
+
+    ipcMain.handle('get-rag-topics', async () => {
+      if (this.ragHintService) {
+        return await this.ragHintService.getAvailableTopics();
+      }
+      return [];
+    });
+
+    ipcMain.handle('get-rag-status', async () => {
+      if (this.ragHintService) {
+        return this.ragHintService.getConnectionStatus();
+      }
+      return { connected: false };
+    });
+
+    ipcMain.handle('analyze-code-from-ui', async (event, code, topic) => {
+      // Manual analysis request from UI
+      if (this.ragHintService) {
+        return await this.ragHintService.generateHints(code, { topic });
+      }
+      return { success: false, error: 'RAG service not available' };
+    });
+
+    ipcMain.handle('get-screen-reader-status', async () => {
+      return {
+        isReading: this.screenReader ? this.screenReader.isReading : false,
+        overlayActive: this.screenOverlay ? this.screenOverlay.isActive : false
+      };
+    });
+
+    ipcMain.handle('get-overlay-status', async () => {
+      return {
+        isActive: this.screenOverlay ? this.screenOverlay.isActive : false,
+        isReading: this.screenReader ? this.screenReader.isReading : false
+      };
+    });
+
     // Handle sidebar toggle from indicator dot
-    ipcMain.on('toggle-sidebar', (event, data) => {
-      console.log('🎯 toggle-sidebar IPC received from:', data?.source || 'unknown');
-      console.log('🎯 Stack trace:', new Error().stack);
-      console.log('🎯 Calling screenOverlay.toggleSidebar()');
-      if (this.screenOverlay && this.screenOverlay.isActive) {
+    ipcMain.on('toggle-sidebar', () => {
+      if (this.screenOverlay) {
         this.screenOverlay.toggleSidebar();
-      } else {
-        console.log('🎯 Cannot toggle sidebar - overlay not active');
       }
     });
-
-    ipcMain.on('close-app', () => {
-      console.log('🚪 Close button clicked - shutting down CoDei');
-      app.isQuiting = true;
-      app.quit();
+    
+    // Handle request for next hint level
+    ipcMain.handle('request-next-hint', async () => {
+      if (this.screenReader && this.currentHintLevel < 3) {
+        this.currentHintLevel++;
+        this.screenReader.setHintLevel(this.currentHintLevel);
+        return { success: true, level: this.currentHintLevel };
+      }
+      return { success: false, message: 'Already at max hint level' };
     });
-
+    
+    // Handle reset hint level
+    ipcMain.handle('reset-hint-level', async () => {
+      this.currentHintLevel = 1;
+      if (this.screenReader) {
+        this.screenReader.setHintLevel(1);
+      }
+      return { success: true, level: 1 };
+    });
+    
+    // Handle chat messages - analyze user questions in context
+    ipcMain.handle('analyze-chat-message', async (event, data) => {
+      try {
+        const { message } = data;
+        
+        console.log('💬 User asked:', message);
+        
+        // Get screen context from passive screen recording
+        const screenContext = this.screenReader ? this.screenReader.getCurrentContext() : null;
+        
+        // Build context string for Claude with OCR screen data
+        let contextString = message;
+        if (screenContext && screenContext.ocrText) {
+          // Format the screen OCR data for Claude with [SCREEN:] prefix
+          let screenInfo = '';
+          
+          if (screenContext.ocrText) {
+            screenInfo += `[SCREEN: ${screenContext.ocrText.substring(0, 500)}]\n`;
+          }
+          
+          if (screenContext.code) {
+            screenInfo += `[CODE on screen: ${screenContext.code.substring(0, 300)}]\n`;
+          }
+          
+          if (screenContext.topic) {
+            screenInfo += `[TOPIC: ${screenContext.topic}]\n`;
+          }
+          
+          // Add explicit instruction for Claude to acknowledge what it sees
+          contextString = `I can see what's on your screen right now.\n\n${screenInfo}\n\nUser asks: ${message}\n\nIMPORTANT: First tell the user what you can see on their screen, then answer their question.`;
+          console.log('📸 Including screen OCR context in chat');
+          console.log(`📄 Screen text: ${screenContext.ocrText.substring(0, 100)}...`);
+        }
+        
+        // Send directly to Claude backend (EXACTLY like origin/main does)
+        const axios = require('axios');
+        const response = await axios.post(
+          'http://localhost:8000/api/code_update',
+          {
+            code: contextString,
+            context: 'User chat',
+            language: 'python'
+          },
+          { timeout: 15000 }
+        );
+        
+        if (response.data && response.data.question) {
+          console.log('✅ Claude responded');
+          
+          return {
+            success: true,
+            hint: response.data.question
+          };
+        }
+        
+        // Fallback response
+        return {
+          success: true,
+          hint: `I'm here to help! What specific part would you like me to explain?`
+        };
+        
+      } catch (error) {
+        console.error('❌ Error analyzing chat message:', error.message);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    });
+    
+    console.log('✅ All IPC handlers registered');
   }
 
   async requestScreenPermissions() {
@@ -455,8 +685,8 @@ class CoDeiApp {
 
 // App event handlers
 app.whenReady().then(async () => {
-  const codeiApp = new CoDeiApp();
-  await codeiApp.initialize();
+  const socraticApp = new SocraticApp();
+  await socraticApp.initialize();
 });
 
 app.on('window-all-closed', () => {
@@ -469,8 +699,8 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   // Re-create window when dock icon is clicked
   if (BrowserWindow.getAllWindows().length === 0) {
-    const codeiApp = new CoDeiApp();
-    codeiApp.initialize();
+    const socraticApp = new SocraticApp();
+    socraticApp.initialize();
   }
 });
 

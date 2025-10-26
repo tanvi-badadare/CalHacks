@@ -1,7 +1,7 @@
 {
   "name": "codei-desktop",
   "version": "1.0.0",
-  "description": "CoDei - AI Coding Tutor Desktop Application",
+  "description": "Socratic - AI Coding Tutor Desktop Application",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -11,21 +11,31 @@
     "build:win": "electron-builder --win",
     "build:linux": "electron-builder --linux"
   },
-  "keywords": ["coding", "tutor", "ai", "education", "desktop"],
+  "keywords": [
+    "coding",
+    "tutor",
+    "ai",
+    "education",
+    "desktop"
+  ],
   "author": "Tanvi",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^28.1.0",
+    "electron": "^38.4.0",
     "electron-builder": "^24.9.1"
   },
   "dependencies": {
-    "chokidar": "^3.5.3",
+    "@google/generative-ai": "^0.24.1",
     "@types/node": "^20.10.5",
+    "axios": "^1.12.2",
+    "chokidar": "^3.5.3",
+    "openai": "^4.104.0",
+    "tesseract.js": "^5.1.1",
     "typescript": "^5.3.3"
   },
   "build": {
     "appId": "com.codei.desktop",
-    "productName": "CoDei",
+    "productName": "Socratic",
     "directories": {
       "output": "dist"
     },

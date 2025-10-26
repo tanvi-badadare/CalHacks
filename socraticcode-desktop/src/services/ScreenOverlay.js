@@ -13,18 +13,27 @@ class ScreenOverlay extends EventEmitter {
     this.creationTime = 0; // Track when sidebar was created to prevent auto-toggles
   }
 
+  // Safe logging that won't crash on EIO errors
+  safeLog(...args) {
+    try {
+      this.safeLog(...args);
+    } catch (error) {
+      // Silently ignore write errors
+    }
+  }
+
   async showOverlay() {
     try {
       // Check if overlay is already active
       if (this.isActive) {
-        console.log('🎯 Overlay already active');
+        this.safeLog('🎯 Overlay already active');
         return true;
       }
 
       // Reset state for fresh start
       this.sidebarVisible = true; // Start with sidebar visible
       this.lastToggleTime = 0;
-      console.log('🎯 Resetting overlay state for fresh start');
+      this.safeLog('🎯 Resetting overlay state for fresh start');
 
       // Get primary display bounds
       const primaryDisplay = screen.getPrimaryDisplay();
@@ -75,9 +84,9 @@ class ScreenOverlay extends EventEmitter {
       if (process.platform === 'darwin') {
         try {
           this.overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-          console.log('🎯 Sidebar set to visible on all workspaces at creation');
+          this.safeLog('🎯 Sidebar set to visible on all workspaces at creation');
         } catch (error) {
-          console.error('Failed to set sidebar visibility at creation:', error);
+          this.safeLog('Failed to set sidebar visibility at creation:', error);
         }
       }
       
@@ -92,15 +101,15 @@ class ScreenOverlay extends EventEmitter {
       
       // Set creation time NOW (when window is actually shown) for grace period protection
       this.creationTime = Date.now();
-      console.log('🎯 Sidebar window shown - grace period starts now');
+      this.safeLog('🎯 Sidebar window shown - grace period starts now');
       
       // IMMEDIATELY set visible on all workspaces AFTER show() - this is critical for first-run visibility on macOS
       if (process.platform === 'darwin') {
         try {
           this.overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-          console.log('🎯 Sidebar set to visible on all workspaces immediately after show()');
+          this.safeLog('🎯 Sidebar set to visible on all workspaces immediately after show()');
         } catch (error) {
-          console.error('Failed to set sidebar visibility immediately:', error);
+          this.safeLog('Failed to set sidebar visibility immediately:', error);
         }
       }
       
@@ -126,9 +135,9 @@ class ScreenOverlay extends EventEmitter {
             this.overlayWindow.focus();
             this.overlayWindow.moveTop();
             
-            console.log('🎯 Sidebar set to be visible on fullscreen apps with multiple levels');
+            this.safeLog('🎯 Sidebar set to be visible on fullscreen apps with multiple levels');
           } catch (error) {
-            console.error('Failed to set sidebar fullscreen visibility:', error);
+            this.safeLog('Failed to set sidebar fullscreen visibility:', error);
           }
         }, 500);
         
@@ -144,19 +153,19 @@ class ScreenOverlay extends EventEmitter {
               this.overlayWindow.show();
               this.overlayWindow.focus();
               this.overlayWindow.moveTop();
-              console.log('🎯 Sidebar visibility set after load event');
+              this.safeLog('🎯 Sidebar visibility set after load event');
             } catch (error) {
-              console.error('Failed to set sidebar visibility after load:', error);
+              this.safeLog('Failed to set sidebar visibility after load:', error);
             }
           }, 200);
         });
       }
 
     this.isActive = true;
-    console.log('🎯 Screen overlay activated');
-      console.log('🎯 Overlay window bounds:', this.overlayWindow.getBounds());
-      console.log('🎯 Overlay window visible:', this.overlayWindow.isVisible());
-      console.log('🎯 Overlay window focused:', this.overlayWindow.isFocused());
+    this.safeLog('🎯 Screen overlay activated');
+      this.safeLog('🎯 Overlay window bounds:', this.overlayWindow.getBounds());
+      this.safeLog('🎯 Overlay window visible:', this.overlayWindow.isVisible());
+      this.safeLog('🎯 Overlay window focused:', this.overlayWindow.isFocused());
 
       // Send screen bounds to overlay
       this.overlayWindow.webContents.send('screen-bounds', this.screenBounds);
@@ -181,7 +190,7 @@ class ScreenOverlay extends EventEmitter {
 
       return true;
     } catch (error) {
-      console.error('Failed to show overlay:', error);
+      this.safeLog('Failed to show overlay:', error);
       return false;
     }
   }
@@ -189,7 +198,7 @@ class ScreenOverlay extends EventEmitter {
   createIndicatorDot(screenWidth, screenHeight) {
     // Check if indicator already exists
     if (this.indicatorWindow && !this.indicatorWindow.isDestroyed()) {
-      console.log('🎯 Indicator already exists, skipping creation');
+      this.safeLog('🎯 Indicator already exists, skipping creation');
       return;
     }
 
@@ -232,7 +241,7 @@ class ScreenOverlay extends EventEmitter {
     this.indicatorWindow.setAlwaysOnTop(true, 'floating');
     this.indicatorWindow.setAlwaysOnTop(true, 'torn-off-menu');
     this.indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
-    console.log('🎯 Indicator set to always on top with screen-saver level');
+    this.safeLog('🎯 Indicator set to always on top with screen-saver level');
 
     // Create HTML for the indicator rectangle
     const indicatorHTML = `
@@ -283,6 +292,15 @@ class ScreenOverlay extends EventEmitter {
             border-bottom: 6px solid transparent;
             border-right: 8px solid var(--button-icon, white);
             margin-left: 2px;
+            transition: transform 0.3s ease;
+          }
+          
+          /* When sidebar is open, arrow points left (to close) */
+          .indicator.open::before {
+            border-right: none;
+            border-left: 8px solid var(--button-icon, white);
+            margin-left: 0;
+            margin-right: 2px;
           }
 
           .indicator.active {
@@ -312,7 +330,7 @@ class ScreenOverlay extends EventEmitter {
       </head>
       <body>
         <div class="indicator-container">
-          <div class="indicator active" id="indicator"></div>
+          <div class="indicator active open" id="indicator"></div>
         </div>
         <script>
           const indicator = document.getElementById('indicator');
@@ -384,9 +402,9 @@ class ScreenOverlay extends EventEmitter {
           this.indicatorWindow.show();
           this.indicatorWindow.moveTop();
           
-          console.log('🎯 Indicator set to be visible on fullscreen apps with multiple levels');
+          this.safeLog('🎯 Indicator set to be visible on fullscreen apps with multiple levels');
         } catch (error) {
-          console.error('Failed to set indicator fullscreen visibility:', error);
+          this.safeLog('Failed to set indicator fullscreen visibility:', error);
         }
       }, 500);
       
@@ -401,9 +419,9 @@ class ScreenOverlay extends EventEmitter {
             this.indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
             this.indicatorWindow.focus();
             this.indicatorWindow.show();
-            console.log('🎯 Indicator visibility set again after load');
+            this.safeLog('🎯 Indicator visibility set again after load');
           } catch (error) {
-            console.error('Failed to set indicator visibility after load:', error);
+            this.safeLog('Failed to set indicator visibility after load:', error);
           }
         }, 200);
       });
@@ -425,10 +443,10 @@ class ScreenOverlay extends EventEmitter {
       }, 3000); // Refresh every 3 seconds for better visibility
     }
     
-    console.log('🎯 Indicator dot created');
-    console.log('🎯 Indicator window bounds:', this.indicatorWindow.getBounds());
-    console.log('🎯 Indicator window visible:', this.indicatorWindow.isVisible());
-    console.log('🎯 Indicator window focused:', this.indicatorWindow.isFocused());
+    this.safeLog('🎯 Indicator dot created');
+    this.safeLog('🎯 Indicator window bounds:', this.indicatorWindow.getBounds());
+    this.safeLog('🎯 Indicator window visible:', this.indicatorWindow.isVisible());
+    this.safeLog('🎯 Indicator window focused:', this.indicatorWindow.isFocused());
   }
 
   updateTheme(theme) {
@@ -459,28 +477,28 @@ class ScreenOverlay extends EventEmitter {
       this.sidebarRefreshInterval = null;
     }
     this.isActive = false;
-    console.log('🎯 Screen overlay deactivated');
+    this.safeLog('🎯 Screen overlay deactivated');
   }
 
   toggleSidebar() {
-    console.log('🎯 toggleSidebar() called');
+    this.safeLog('🎯 toggleSidebar() called');
     if (!this.overlayWindow || this.overlayWindow.isDestroyed()) {
-      console.log('🎯 Cannot toggle sidebar - overlay window is destroyed or missing');
+      this.safeLog('🎯 Cannot toggle sidebar - overlay window is destroyed or missing');
       return;
     }
     
     // Prevent toggles immediately after creation (grace period to avoid auto-triggers)
     const now = Date.now();
     const timeSinceCreation = now - this.creationTime;
-    console.log(`🎯 Toggle check - creationTime: ${this.creationTime}, now: ${now}, timeSince: ${timeSinceCreation}ms`);
+    this.safeLog(`🎯 Toggle check - creationTime: ${this.creationTime}, now: ${now}, timeSince: ${timeSinceCreation}ms`);
     if (this.creationTime && timeSinceCreation < 3000) {
-      console.log(`🎯 Sidebar toggle blocked - too soon after creation (${timeSinceCreation}ms ago, need 3000ms grace period)`);
+      this.safeLog(`🎯 Sidebar toggle blocked - too soon after creation (${timeSinceCreation}ms ago, need 3000ms grace period)`);
       return;
     }
     
     // Prevent rapid toggling - add a small delay
-    if (this.lastToggleTime && (now - this.lastToggleTime) < 1000) {
-      console.log(`🎯 Sidebar toggle ignored - too rapid (${now - this.lastToggleTime}ms ago, need 1000ms)`);
+    if (this.lastToggleTime && (now - this.lastToggleTime) < 500) {
+      this.safeLog(`🎯 Sidebar toggle ignored - too rapid (${now - this.lastToggleTime}ms ago, need 500ms)`);
       return;
     }
 
@@ -488,17 +506,74 @@ class ScreenOverlay extends EventEmitter {
     this.sidebarVisible = !this.sidebarVisible;
 
     try {
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width, height } = primaryDisplay.workAreaSize;
+      const sidebarWidth = 400;
+
       if (this.sidebarVisible) {
-        // Show sidebar
+        // Slide sidebar in from the right
+        this.safeLog('🎯 Showing sidebar - sliding in');
+        this.overlayWindow.setBounds({
+          x: width - sidebarWidth,
+          y: 0,
+          width: sidebarWidth,
+          height: height
+        }, true); // animate = true
         this.overlayWindow.show();
+        
+        // Update indicator arrow direction (pointing left when open)
+        if (this.indicatorWindow && !this.indicatorWindow.isDestroyed()) {
+          try {
+            this.indicatorWindow.webContents.executeJavaScript(`
+              const indicator = document.getElementById('indicator');
+              if (indicator) {
+                indicator.classList.add('open');
+              }
+            `).catch(err => {
+              // Silently ignore - indicator may not be ready
+            });
+          } catch (error) {
+            // Silently ignore - indicator may not be ready
+          }
+        }
       } else {
-        // Hide sidebar
-        this.overlayWindow.hide();
+        // Slide sidebar out to the right (off-screen)
+        this.safeLog('🎯 Hiding sidebar - sliding out');
+        this.overlayWindow.setBounds({
+          x: width, // Move completely off-screen to the right
+          y: 0,
+          width: sidebarWidth,
+          height: height
+        }, true); // animate = true
+        
+        // Update indicator arrow direction (pointing right when closed)
+        if (this.indicatorWindow && !this.indicatorWindow.isDestroyed()) {
+          try {
+            this.indicatorWindow.webContents.executeJavaScript(`
+              const indicator = document.getElementById('indicator');
+              if (indicator) {
+                indicator.classList.remove('open');
+              }
+            `).catch(err => {
+              // Silently ignore - indicator may not be ready
+            });
+          } catch (error) {
+            // Silently ignore - indicator may not be ready
+          }
+        }
+        
+        // After animation completes (300ms), optionally hide to save resources
+        setTimeout(() => {
+          if (!this.sidebarVisible && this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+            // Keep it rendered but off-screen (don't hide completely)
+            // this.overlayWindow.hide();
+          }
+        }, 300);
       }
       
-      console.log(`🎯 Sidebar ${this.sidebarVisible ? 'shown' : 'hidden'}`);
+      this.safeLog(`🎯 Sidebar ${this.sidebarVisible ? 'shown' : 'hidden'} with animation`);
     } catch (error) {
-      console.log('🎯 Error toggling sidebar:', error.message);
+      this.safeLog('🎯 Error toggling sidebar:', error.message);
     }
   }
 
@@ -510,20 +585,20 @@ class ScreenOverlay extends EventEmitter {
     try {
       // Check if window is still valid before sending
       if (this.overlayWindow.isDestroyed()) {
-        console.log('Overlay window has been destroyed, skipping hint');
+        this.safeLog('Overlay window has been destroyed, skipping hint');
         return;
       }
       
       // Additional check for webContents
       if (!this.overlayWindow.webContents || this.overlayWindow.webContents.isDestroyed()) {
-        console.log('Overlay webContents has been destroyed, skipping hint');
+        this.safeLog('Overlay webContents has been destroyed, skipping hint');
         return;
       }
       
       // Send hint to overlay window
       this.overlayWindow.webContents.send('show-hint', hintData);
     } catch (error) {
-      console.log('Error sending hint to overlay:', error.message);
+      this.safeLog('Error sending hint to overlay:', error.message);
     }
   }
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CoDei Overlay</title>
+    <title>Socratic Overlay</title>
     <style>
         * {
             margin: 0;
@@ -271,7 +271,7 @@
         <div class="sidebar-header">
             <div>
                 <span>🤖</span>
-                <span>CoDei AI</span>
+                <span>Socratic AI</span>
             </div>
             <div class="sidebar-controls">
                 <button class="collapse-btn" id="collapseBtn" title="Collapse Sidebar">◀</button>
@@ -297,124 +297,55 @@
         const chatInput = document.getElementById('chatInput');
         const sendBtn = document.getElementById('sendBtn');
 
-        // Add comprehensive event debugging for collapse button
-        const collapseBtn = document.getElementById('collapseBtn');
-        ['click', 'mousedown', 'mouseup', 'focus', 'blur', 'mouseenter', 'mouseleave'].forEach(eventType => {
-          collapseBtn.addEventListener(eventType, (event) => {
-            console.log(`🎯 Collapse ${eventType} event:`, {
-              type: event.type,
-              target: event.target.tagName,
-              timestamp: Date.now(),
-              button: event.button,
-              detail: event.detail
-            });
-          });
-        });
+        let currentHints = null;
+        let currentLevel = 1;
+        let currentPersonality = 'mentor';
 
-        // Handle collapse button - block all clicks for first 3 seconds after window creation
-        let windowCreationTime = Date.now();
-        collapseBtn.addEventListener('click', (event) => {
-            const now = Date.now();
-            const timeSinceCreation = now - windowCreationTime;
-            
-            // Block ALL clicks for 3 seconds after window creation
-            if (timeSinceCreation < 3000) {
-              console.log('🎯 Blocked collapse button click - too soon after window creation (' + timeSinceCreation + 'ms ago, need 3000ms grace period)');
-              event.preventDefault();
-              event.stopPropagation();
-              return;
-            }
-            
-            console.log('🎯 Collapse button clicked - allowed (trusted click after grace period)');
-            ipcRenderer.send('toggle-sidebar', { source: 'overlay-collapse-button' });
+        // Handle collapse button
+        document.getElementById('collapseBtn').addEventListener('click', () => {
+            ipcRenderer.send('toggle-sidebar');
         });
 
         // Send message
-        function sendMessage() {
+        async function sendMessage() {
             const text = chatInput.value.trim();
             if (!text) return;
             
             addMessage('user', text);
             chatInput.value = '';
             
-            // Check if it looks like code before sending to backend
-            if (looksLikeCode(text)) {
-                analyzeCode(text);
-            } else {
-                // Regular chat message - send to backend as general conversation
-                analyzeCode(text);
-            }
-        }
-
-        // Check if text looks like code
-        function looksLikeCode(text) {
-            // Check for code patterns first
-            const hasCodePatterns = text.includes('function ') || 
-                   text.includes('def ') || 
-                   text.includes('const ') || 
-                   text.includes('let ') || 
-                   text.includes('class ') ||
-                   text.includes('import ') ||
-                   text.includes('print(') ||
-                   text.includes('for(') ||
-                   text.includes('while(') ||
-                   text.includes('if(');
-            
-            const hasOperators = text.includes('=') || text.includes('<') || text.includes('>') || text.includes('+') || text.includes('-') || text.includes('*');
-            const hasCodeChars = (text.includes('(') && text.includes(')')) || (text.includes('{') && text.includes('}')) || text.includes('[]');
-            
-            // If it has code patterns or operators, it's likely code
-            if (hasCodePatterns || (hasOperators && hasCodeChars)) {
-                return true;
-            }
-            
-            // Single word with no code patterns is probably not code
-            if (text.split(/\s+/).length === 1) {
-                return false;
-            }
-            
-            return text.includes('{') && text.includes('}') ||
-                   (text.includes('(') && text.includes(')'));
-        }
-
-        // Send code to Python backend API
-        async function analyzeCode(code) {
-            addMessage('ai', '🤔 Analyzing your code...');
+            // Show thinking indicator
+            const thinkingMsg = document.createElement('div');
+            thinkingMsg.className = 'message ai';
+            thinkingMsg.innerHTML = `
+                <div class="message-avatar">🤔</div>
+                <div class="message-content" style="font-style: italic; color: #888;">
+                    Thinking...
+                </div>
+            `;
+            chatMessages.appendChild(thinkingMsg);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
             
             try {
-                const response = await fetch('http://localhost:8000/api/code_update', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        code: code,
-                        context: 'User chat',
-                        language: 'python'
-                    })
+                // Send to Claude via main process (includes screen context automatically)
+                const response = await ipcRenderer.invoke('analyze-chat-message', {
+                    message: text
                 });
                 
-                const result = await response.json();
+                // Remove thinking indicator
+                thinkingMsg.remove();
                 
-                // Remove the "analyzing" message
-                if (chatMessages.lastChild) {
-                    chatMessages.removeChild(chatMessages.lastChild);
-                }
-                
-                // Always show the AI response if available
-                if (result.question) {
-                    addMessage('ai', result.question);
-                } else if (result.analysis.has_errors) {
-                    addMessage('ai', `⚠️ I found some errors in your code. ${result.analysis.errors[0]?.message || 'Check your syntax!'}`);
+                if (response.success) {
+                    addMessage('ai', response.hint);
                 } else {
-                    addMessage('ai', '✓ Your code looks good! Keep up the great work!');
+                    addMessage('ai', 'I\'m here to help! What would you like to know?');
                 }
             } catch (error) {
-                console.error('Error calling backend:', error);
-                addMessage('ai', '❌ Could not connect to analysis service. Make sure the Python backend is running.');
+                thinkingMsg.remove();
+                addMessage('ai', 'I\'m having trouble connecting. Make sure the backend is running!');
+                console.error('Chat error:', error);
             }
         }
-
 
         sendBtn.addEventListener('click', sendMessage);
         chatInput.addEventListener('keypress', (e) => {
@@ -424,10 +355,244 @@
             }
         });
 
-        // Listen for hint messages from main process
+        // Track last problem to avoid clearing hints unnecessarily
+        let lastProblem = null;
+        
+        // Listen for progressive hints from screen reader
+        ipcRenderer.on('show-progressive-hints', (event, data) => {
+            // Check if this is a NEW problem (different question)
+            const currentProblem = `${data.topic}:${data.question}`;
+            const isNewProblem = lastProblem !== currentProblem;
+            
+            if (isNewProblem) {
+                lastProblem = currentProblem;
+                // Only clear if it's a NEW problem
+                chatMessages.innerHTML = '';
+                
+                // Add topic header for new problem
+                addTopicHeader(data.topic, data.question);
+            }
+            
+            // Store current context (including code and question for chat)
+            currentHints = {
+                ...data.hints,
+                code: data.code || '',
+                question: data.question || ''
+            };
+            currentPersonality = data.personality || 'mentor';
+            currentLevel = data.hints.currentLevel || 1;
+            
+            // Only show hints if it's a new problem OR if we don't have any hints yet
+            if (isNewProblem || chatMessages.children.length <= 1) {
+                showProgressiveHints(currentHints);
+            }
+        });
+
+        // Listen for hint messages from main process (legacy)
         ipcRenderer.on('show-hint', (event, hintData) => {
             addMessage('ai', hintData.message || 'Keep learning!');
         });
+        
+        // Listen for smart stuck hints (when user is stuck)
+        ipcRenderer.on('show-stuck-hint', (event, data) => {
+            const severityEmoji = data.severity === 'urgent' ? '🆘' :
+                                 data.severity === 'moderate' ? '💡' : '✨';
+            const reasonText = data.reason === 'long_pause' ? 'You paused for a while' :
+                              data.reason === 'frequent_deletions' ? 'Trying different approaches?' :
+                              data.reason === 'no_progress' ? 'Making progress?' :
+                              'Need a hint?';
+            
+            // Add a gentle nudge message
+            const nudgeDiv = document.createElement('div');
+            nudgeDiv.className = 'message ai';
+            nudgeDiv.style.animation = 'slideIn 0.3s ease';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = severityEmoji;
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.style.background = 'rgba(255, 180, 80, 0.1)';
+            content.style.borderLeft = '3px solid rgba(255, 180, 80, 0.8)';
+            content.innerHTML = `
+                <div style="font-size: 11px; color: #888; margin-bottom: 4px;">${reasonText}</div>
+                <div>${data.hint.hint}</div>
+            `;
+            
+            nudgeDiv.appendChild(avatar);
+            nudgeDiv.appendChild(content);
+            chatMessages.appendChild(nudgeDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+
+        function addTopicHeader(topic, question) {
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'message ai';
+            headerDiv.style.maxWidth = '100%';
+            headerDiv.style.marginBottom = '16px';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = '🎯';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.style.background = 'rgba(0, 212, 170, 0.1)';
+            content.style.borderColor = 'rgba(0, 212, 170, 0.3)';
+            content.style.fontWeight = '600';
+            content.innerHTML = `<div style="font-size: 15px; margin-bottom: 8px;">Topic: ${topic.toUpperCase()}</div>
+                                 <div style="font-size: 13px; font-weight: normal; color: #b0b0b0;">${question}</div>`;
+            
+            headerDiv.appendChild(avatar);
+            headerDiv.appendChild(content);
+            
+            chatMessages.appendChild(headerDiv);
+        }
+
+        function showProgressiveHints(hints) {
+            if (!hints || !hints.progressiveHints) return;
+            
+            const personalityEmojis = {
+                'mentor': '👨‍🏫',
+                'sarcastic': '😏',
+                'fun': '🎉',
+                'grade-level': '🎓'
+            };
+            
+            const emoji = personalityEmojis[currentPersonality] || '💡';
+            
+            // Show each revealed hint
+            hints.progressiveHints.forEach((hintObj, index) => {
+                if (hintObj.revealed) {
+                    addHintMessage(hintObj.level, hintObj.hint, emoji);
+                }
+            });
+            
+            // Add "Next Hint" button if there are more hints
+            const hasMoreHints = hints.progressiveHints.some(h => !h.revealed);
+            if (hasMoreHints) {
+                addNextHintButton();
+            } else {
+                addCompletionMessage();
+            }
+        }
+
+        function addHintMessage(level, text, emoji) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ai';
+            messageDiv.style.maxWidth = '100%';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = emoji;
+            avatar.style.background = level === 1 ? 'rgba(100, 150, 255, 0.2)' : 
+                                      level === 2 ? 'rgba(255, 180, 80, 0.2)' : 
+                                      'rgba(80, 200, 120, 0.2)';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.style.borderLeft = level === 1 ? '3px solid rgba(100, 150, 255, 0.8)' : 
+                                       level === 2 ? '3px solid rgba(255, 180, 80, 0.8)' : 
+                                       '3px solid rgba(80, 200, 120, 0.8)';
+            content.innerHTML = `<div style="font-size: 11px; color: #888; margin-bottom: 4px;">Hint Level ${level}</div>
+                                <div>${text}</div>`;
+            
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(content);
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addNextHintButton() {
+            const buttonDiv = document.createElement('div');
+            buttonDiv.style.display = 'flex';
+            buttonDiv.style.justifyContent = 'center';
+            buttonDiv.style.margin = '16px 0';
+            
+            const button = document.createElement('button');
+            button.textContent = '💡 Need Another Hint?';
+            button.style.cssText = `
+                background: rgba(0, 212, 170, 0.2);
+                border: 1px solid rgba(0, 212, 170, 0.3);
+                color: #00d4aa;
+                padding: 10px 20px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 600;
+                transition: all 0.2s ease;
+            `;
+            
+            button.onmouseover = () => {
+                button.style.background = 'rgba(0, 212, 170, 0.3)';
+                button.style.borderColor = 'rgba(0, 212, 170, 0.5)';
+            };
+            button.onmouseout = () => {
+                button.style.background = 'rgba(0, 212, 170, 0.2)';
+                button.style.borderColor = 'rgba(0, 212, 170, 0.3)';
+            };
+            
+            button.onclick = async () => {
+                const result = await ipcRenderer.invoke('request-next-hint');
+                if (result.success) {
+                    // Find and reveal the next hint
+                    const nextHint = currentHints.progressiveHints.find(h => !h.revealed);
+                    if (nextHint) {
+                        nextHint.revealed = true;
+                        currentLevel = result.level;
+                        
+                        // Remove the button
+                        buttonDiv.remove();
+                        
+                        // Show the new hint
+                        const personalityEmojis = {
+                            'mentor': '👨‍🏫',
+                            'sarcastic': '😏',
+                            'fun': '🎉',
+                            'grade-level': '🎓'
+                        };
+                        const emoji = personalityEmojis[currentPersonality] || '💡';
+                        addHintMessage(nextHint.level, nextHint.hint, emoji);
+                        
+                        // Check if there are more hints
+                        const hasMoreHints = currentHints.progressiveHints.some(h => !h.revealed);
+                        if (hasMoreHints) {
+                            addNextHintButton();
+                        } else {
+                            addCompletionMessage();
+                        }
+                    }
+                }
+            };
+            
+            buttonDiv.appendChild(button);
+            chatMessages.appendChild(buttonDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addCompletionMessage() {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ai';
+            messageDiv.style.maxWidth = '100%';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = '✨';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.style.background = 'rgba(80, 200, 120, 0.1)';
+            content.style.borderColor = 'rgba(80, 200, 120, 0.3)';
+            content.textContent = 'You\'ve seen all the hints! Try solving it yourself now. You got this! 💪';
+            
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(content);
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
 
         function addMessage(sender, text) {
             const messageDiv = document.createElement('div');
