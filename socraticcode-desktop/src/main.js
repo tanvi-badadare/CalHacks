@@ -16,6 +16,7 @@ class CoDeiApp {
     this.screenOverlay = null;
     this.screenReader = null;
     this.isDev = process.argv.includes('--dev');
+    this.isStartingMonitoring = false;
   }
 
   createWindow() {
@@ -48,15 +49,25 @@ class CoDeiApp {
     });
 
     // Load the app
+    console.log('🟢 IPC: Loading renderer HTML file');
     this.mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
 
     // Show window when ready
     this.mainWindow.once('ready-to-show', () => {
+      console.log('🟢 IPC: Main window ready to show');
       this.mainWindow.show();
       
-      if (this.isDev) {
-        this.mainWindow.webContents.openDevTools();
-      }
+      // Always open dev tools for debugging
+      this.mainWindow.webContents.openDevTools();
+    });
+
+    // Add debugging for renderer events
+    this.mainWindow.webContents.on('did-finish-load', () => {
+      console.log('🟢 IPC: Renderer finished loading');
+    });
+
+    this.mainWindow.webContents.on('dom-ready', () => {
+      console.log('🟢 IPC: Renderer DOM ready');
     });
 
     // Handle window closed
@@ -141,16 +152,16 @@ class CoDeiApp {
   }
 
   async initializeServices() {
-    // Initialize Screen Overlay for visual hints
+    // Initialize Screen Overlay for visual hints (but don't show it yet)
     this.screenOverlay = new ScreenOverlay();
     
-    // Initialize Screen Reader for reading screen content
+    // Initialize Screen Reader for reading screen content (but don't start it yet)
     this.screenReader = new ScreenReader();
     this.screenReader.on('contentDetected', (data) => {
       try {
         console.log('📸 Content detected:', data);
         
-        // Show hint on screen overlay only if it's initialized
+        // Show hint on screen overlay only if it's initialized and active
         if (this.screenOverlay && this.screenOverlay.isActive) {
           this.screenOverlay.showHint({
             message: data.hint,
@@ -159,7 +170,8 @@ class CoDeiApp {
           });
         }
       } catch (error) {
-        console.error('Error handling content detection:', error);
+        console.error('Error handling content detection:', error.message);
+        // Don't let content detection errors crash the app
       }
     });
     
@@ -170,37 +182,36 @@ class CoDeiApp {
     this.universalService.on('solutionIntercepted', (data) => {
       console.log('🌐 Universal solution intercepted:', data);
       
-      // Show hint on screen overlay
-      this.screenOverlay.showHint({
-        message: data.response.learningResponse || "Let's think about this together!",
-        level: data.response.hintLevel || 1,
-        position: { x: 50, y: 50 },
-        highlight: { x: 100, y: 100, width: 300, height: 50 }
-      });
+      // Show hint on screen overlay only if it's active
+      if (this.screenOverlay && this.screenOverlay.isActive) {
+        this.screenOverlay.showHint({
+          message: data.response.learningResponse || "Let's think about this together!",
+          level: data.response.hintLevel || 1,
+          position: { x: 50, y: 50 },
+          highlight: { x: 100, y: 100, width: 300, height: 50 }
+        });
+      }
     });
     
     this.universalService.on('codeCopied', (data) => {
       console.log('📋 Code copying detected:', data);
       
-      // Show hint about learning
-      this.screenOverlay.showHint({
-        message: "Think about why this code works! Understanding > Copying 💡",
-        level: 2,
-        position: { x: 50, y: 100 },
-      });
+      // Show hint about learning only if overlay is active
+      if (this.screenOverlay && this.screenOverlay.isActive) {
+        this.screenOverlay.showHint({
+          message: "Think about why this code works! Understanding > Copying 💡",
+          level: 2,
+          position: { x: 50, y: 100 },
+        });
+      }
     });
     
     this.universalService.on('manualInvocation', (data) => {
       console.log('🔑 CoDei manually invoked:', data);
     });
     
-    // Initialize the universal service
-    const success = await this.universalService.initialize();
-    if (success) {
-      console.log('✅ Universal CoDei Service initialized');
-    } else {
-      console.log('⚠️ Universal CoDei Service initialization failed');
-    }
+    // Don't initialize the universal service yet - wait for user to start monitoring
+    console.log('✅ Universal CoDei Service ready for initialization');
     
     // Initialize file monitoring for local development
     this.fileMonitor = new FileMonitor();
@@ -291,6 +302,25 @@ class CoDeiApp {
     // Handle requests from renderer process
     ipcMain.handle('start-monitoring', async (event, options) => {
       try {
+        console.log('🟢 IPC: start-monitoring handler called');
+        
+        // Prevent multiple simultaneous start-monitoring calls
+        if (this.isStartingMonitoring) {
+          console.log('⚠️ Start monitoring already in progress, skipping');
+          return { success: false, error: 'Start monitoring already in progress' };
+        }
+        
+        this.isStartingMonitoring = true;
+        // Initialize the universal service when user starts monitoring
+        if (!this.universalService.isActive) {
+          const success = await this.universalService.initialize();
+          if (!success) {
+            console.log('⚠️ Universal CoDei Service initialization failed');
+            return { success: false, error: 'Failed to initialize Universal CoDei Service' };
+          }
+          console.log('✅ Universal CoDei Service initialized');
+        }
+        
         await this.fileMonitor.startMonitoring(options.watchPaths);
         await this.keystrokeMonitor.startMonitoring();
         
@@ -300,14 +330,21 @@ class CoDeiApp {
         // Show the screen overlay for hints
         await this.screenOverlay.showOverlay();
         
-        // Hide the main window when monitoring starts
-        if (this.mainWindow) {
-          this.mainWindow.hide();
-        }
+        // Note: Theme will be applied when overlay is created
+        
+        // Send success response to renderer first
+        console.log('🟢 IPC: Sending monitoring-started event to renderer');
+        event.sender.send('monitoring-started', { success: true });
+        console.log('🟢 IPC: monitoring-started event sent to renderer');
+        
+        // Keep main window visible - user can manually hide it if desired
+        console.log('🟢 IPC: Monitoring started - main window remains visible');
         
         this.updateTrayIcon(true); // Update tray to show active
+        this.isStartingMonitoring = false;
         return { success: true };
       } catch (error) {
+        this.isStartingMonitoring = false;
         return { success: false, error: error.message };
       }
     });
@@ -322,6 +359,13 @@ class CoDeiApp {
         
         // Hide the screen overlay
         this.screenOverlay.hideOverlay();
+        
+        // Send monitoring stopped event to renderer
+        console.log('🟢 IPC: Sending monitoring-stopped event to renderer');
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('monitoring-stopped', { success: true });
+          console.log('🟢 IPC: monitoring-stopped event sent to renderer');
+        }
         
         // Show the main window when monitoring stops
         if (this.mainWindow) {
@@ -343,6 +387,12 @@ class CoDeiApp {
       return this.universalService.getServiceStatus();
     });
 
+    ipcMain.handle('get-overlay-status', async () => {
+      return {
+        isActive: this.screenOverlay ? this.screenOverlay.isActive : false
+      };
+    });
+
     ipcMain.handle('set-personality', async (event, personality) => {
       // Update universal service personality
       this.universalService.learningProfile.personality = personality;
@@ -354,9 +404,54 @@ class CoDeiApp {
     });
 
     // Handle sidebar toggle from indicator dot
-    ipcMain.on('toggle-sidebar', () => {
-      if (this.screenOverlay) {
+    ipcMain.on('toggle-sidebar', (event, data) => {
+      console.log('🎯 toggle-sidebar IPC received from:', data?.source || 'unknown');
+      console.log('🎯 Stack trace:', new Error().stack);
+      console.log('🎯 Calling screenOverlay.toggleSidebar()');
+      if (this.screenOverlay && this.screenOverlay.isActive) {
         this.screenOverlay.toggleSidebar();
+      } else {
+        console.log('🎯 Cannot toggle sidebar - overlay not active');
+      }
+    });
+
+    ipcMain.on('close-app', () => {
+      console.log('🚪 Close button clicked - shutting down CoDei');
+      app.isQuiting = true;
+      app.quit();
+    });
+
+    // Handle "show" command from sidebar
+    ipcMain.on('get-screen-content', async (event) => {
+      console.log('📸 get-screen-content IPC received');
+      try {
+        if (this.screenReader && this.screenReader.isReading) {
+          const screenInfo = await this.screenReader.getScreenDescription();
+          
+          // Send screen description back to renderer
+          if (this.screenOverlay && this.screenOverlay.isActive && this.screenOverlay.overlayWindow) {
+            this.screenOverlay.overlayWindow.webContents.send('screen-content', {
+              description: screenInfo.hasScreen ? 
+                `I can see your screen! Last captured ${Math.round((Date.now() - screenInfo.timestamp) / 1000)}s ago. The screen shows a ${screenInfo.description}.` :
+                'Screen capture is not available right now.',
+              timestamp: screenInfo.timestamp
+            });
+          }
+        } else {
+          // Send error if screen reading not active
+          if (this.screenOverlay && this.screenOverlay.isActive && this.screenOverlay.overlayWindow) {
+            this.screenOverlay.overlayWindow.webContents.send('screen-content', {
+              description: 'Screen reading is not active. Please start monitoring first.'
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error getting screen content:', error);
+        if (this.screenOverlay && this.screenOverlay.isActive && this.screenOverlay.overlayWindow) {
+          this.screenOverlay.overlayWindow.webContents.send('screen-content', {
+            description: 'Error capturing screen: ' + error.message
+          });
+        }
       }
     });
   }

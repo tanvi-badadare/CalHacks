@@ -297,9 +297,36 @@
         const chatInput = document.getElementById('chatInput');
         const sendBtn = document.getElementById('sendBtn');
 
-        // Handle collapse button
-        document.getElementById('collapseBtn').addEventListener('click', () => {
-            ipcRenderer.send('toggle-sidebar');
+        // Add comprehensive event debugging for collapse button
+        const collapseBtn = document.getElementById('collapseBtn');
+        ['click', 'mousedown', 'mouseup', 'focus', 'blur', 'mouseenter', 'mouseleave'].forEach(eventType => {
+          collapseBtn.addEventListener(eventType, (event) => {
+            console.log(`🎯 Collapse ${eventType} event:`, {
+              type: event.type,
+              target: event.target.tagName,
+              timestamp: Date.now(),
+              button: event.button,
+              detail: event.detail
+            });
+          });
+        });
+
+        // Handle collapse button - block all clicks for first 3 seconds after window creation
+        let windowCreationTime = Date.now();
+        collapseBtn.addEventListener('click', (event) => {
+            const now = Date.now();
+            const timeSinceCreation = now - windowCreationTime;
+            
+            // Block ALL clicks for 3 seconds after window creation
+            if (timeSinceCreation < 3000) {
+              console.log('🎯 Blocked collapse button click - too soon after window creation (' + timeSinceCreation + 'ms ago, need 3000ms grace period)');
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
+            
+            console.log('🎯 Collapse button clicked - allowed (trusted click after grace period)');
+            ipcRenderer.send('toggle-sidebar', { source: 'overlay-collapse-button' });
         });
 
         // Send message
@@ -310,11 +337,26 @@
             addMessage('user', text);
             chatInput.value = '';
             
-            // Simulate AI response (in real app, this would call an API)
-            setTimeout(() => {
-                addMessage('ai', 'I\'m here to help you learn! Feel free to ask any coding questions.');
-            }, 500);
+            // Check if user typed "show" command
+            if (text.toLowerCase() === 'show') {
+                // Request screen content from main process
+                ipcRenderer.send('get-screen-content');
+            } else {
+                // Handle other messages
+                setTimeout(() => {
+                    addMessage('ai', 'I\'m here to help you learn! Type "show" to see what I can see on your screen.');
+                }, 500);
+            }
         }
+
+        // Listen for screen content from main process
+        ipcRenderer.on('screen-content', (event, content) => {
+            if (content && content.description) {
+                addMessage('ai', content.description);
+            } else {
+                addMessage('ai', 'Unable to capture screen content at this time.');
+            }
+        });
 
         sendBtn.addEventListener('click', sendMessage);
         chatInput.addEventListener('keypress', (e) => {
