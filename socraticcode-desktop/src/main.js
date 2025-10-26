@@ -421,39 +421,6 @@ class CoDeiApp {
       app.quit();
     });
 
-    // Handle "show" command from sidebar
-    ipcMain.on('get-screen-content', async (event) => {
-      console.log('📸 get-screen-content IPC received');
-      try {
-        if (this.screenReader && this.screenReader.isReading) {
-          const screenInfo = await this.screenReader.getScreenDescription();
-          
-          // Send screen description back to renderer
-          if (this.screenOverlay && this.screenOverlay.isActive && this.screenOverlay.overlayWindow) {
-            this.screenOverlay.overlayWindow.webContents.send('screen-content', {
-              description: screenInfo.hasScreen ? 
-                `I can see your screen! Last captured ${Math.round((Date.now() - screenInfo.timestamp) / 1000)}s ago. The screen shows a ${screenInfo.description}.` :
-                'Screen capture is not available right now.',
-              timestamp: screenInfo.timestamp
-            });
-          }
-        } else {
-          // Send error if screen reading not active
-          if (this.screenOverlay && this.screenOverlay.isActive && this.screenOverlay.overlayWindow) {
-            this.screenOverlay.overlayWindow.webContents.send('screen-content', {
-              description: 'Screen reading is not active. Please start monitoring first.'
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error getting screen content:', error);
-        if (this.screenOverlay && this.screenOverlay.isActive && this.screenOverlay.overlayWindow) {
-          this.screenOverlay.overlayWindow.webContents.send('screen-content', {
-            description: 'Error capturing screen: ' + error.message
-          });
-        }
-      }
-    });
   }
 
   async requestScreenPermissions() {

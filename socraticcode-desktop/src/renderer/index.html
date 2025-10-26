@@ -393,16 +393,21 @@
 
 
     <script>
+        console.log('🔵 UI: Script starting to execute...');
+        console.log('🔵 UI: Cache bust - v2.0');
         const { ipcRenderer } = require('electron');
+        console.log('🔵 UI: ipcRenderer loaded successfully');
 
         class CoDeiUI {
             constructor() {
+                console.log('🔵 UI: CoDeiUI constructor called');
                 this.isMonitoring = false;
                 this.currentTheme = 'dark';
                 this.initializeEventListeners();
                 this.setupIPCListeners();
                 this.loadTheme();
                 this.updateThemeToggle();
+                console.log('🔵 UI: CoDeiUI initialized');
             }
 
             initializeEventListeners() {
@@ -424,7 +429,35 @@
             }
 
             setupIPCListeners() {
+                console.log('🔵 UI: Setting up IPC listeners...');
                 // IPC listeners can be added here when needed
+                // Note: ipcRenderer.handle doesn't exist in renderer, only in main process
+                
+                // Remove existing listeners to prevent duplicates
+                ipcRenderer.removeAllListeners('monitoring-started');
+                ipcRenderer.removeAllListeners('monitoring-stopped');
+                
+                // Listen for monitoring started event
+                ipcRenderer.on('monitoring-started', (event, data) => {
+                    console.log('🔵 UI: Received monitoring-started event:', data);
+                    if (data.success) {
+                        this.isMonitoring = true;
+                        this.updateUI(true);
+                        console.log('🔵 UI: Updated to monitoring state');
+                    }
+                });
+                
+                // Listen for monitoring stopped event
+                ipcRenderer.on('monitoring-stopped', (event, data) => {
+                    console.log('🔵 UI: Received monitoring-stopped event:', data);
+                    if (data.success) {
+                        this.isMonitoring = false;
+                        this.updateUI(false);
+                        console.log('🔵 UI: Updated to ready state');
+                    }
+                });
+                
+                console.log('🔵 UI: IPC listeners set up successfully');
             }
 
 
@@ -442,6 +475,10 @@
                 const savedTheme = localStorage.getItem('theme') || 'dark';
                 document.body.setAttribute('data-theme', savedTheme);
                 this.currentTheme = savedTheme;
+            }
+
+            getCurrentTheme() {
+                return this.currentTheme;
             }
 
             updateThemeToggle() {
@@ -463,35 +500,48 @@
 
             async startMonitoring() {
                 try {
+                    console.log('🔵 UI: Start monitoring button clicked, current state:', this.isMonitoring);
                     const result = await ipcRenderer.invoke('start-monitoring', {
                         watchPaths: []
                     });
-
-                    if (result.success) {
-                        this.isMonitoring = true;
-                        this.updateUI(true);
-                    } else {
+            
+                    if (!result.success) {
                         console.error('Error starting monitoring:', result.error);
+                        // Revert UI if there was an error
+                        this.isMonitoring = false;
+                        this.updateUI(false);
                     }
+                    // UI will be updated by the 'monitoring-started' event
                 } catch (error) {
-                    console.error('Failed to start monitoring:', error);
+                    console.error('Error starting monitoring:', error);
+                    // Revert UI if there was an error
+                    this.isMonitoring = false;
+                    this.updateUI(false);
                 }
             }
 
             async stopMonitoring() {
                 try {
+                    console.log('🔵 UI: Stop monitoring button clicked, current state:', this.isMonitoring);
                     const result = await ipcRenderer.invoke('stop-monitoring');
                     
-                    if (result.success) {
-                        this.isMonitoring = false;
-                        this.updateUI(false);
+                    if (!result.success) {
+                        console.error('Error stopping monitoring:', result.error);
+                        // Revert UI if there was an error
+                        this.isMonitoring = true;
+                        this.updateUI(true);
                     }
+                    // UI will be updated by the 'monitoring-stopped' event
                 } catch (error) {
-                    console.error('Failed to stop monitoring:', error);
+                    console.error('Error stopping monitoring:', error);
+                    // Revert UI if there was an error
+                    this.isMonitoring = true;
+                    this.updateUI(true);
                 }
             }
 
             updateUI(isActive) {
+                console.log('🔵 UI: updateUI called with isActive:', isActive, 'current isMonitoring:', this.isMonitoring);
                 const statusDot = document.getElementById('statusDot');
                 const statusText = document.getElementById('statusText');
                 const startBtn = document.getElementById('startBtn');
@@ -515,7 +565,20 @@
         }
 
         // Initialize the UI
-        new CoDeiUI();
+        const ui = new CoDeiUI();
+        
+        // Check if overlay is already active (which means monitoring is running)
+        setTimeout(async () => {
+            try {
+                const overlayStatus = await ipcRenderer.invoke('get-overlay-status');
+                if (overlayStatus && overlayStatus.isActive) {
+                    ui.isMonitoring = true;
+                    ui.updateUI(true);
+                }
+            } catch (error) {
+                console.log('Could not check overlay status:', error);
+            }
+        }, 2000);
     </script>
 </body>
 </html>

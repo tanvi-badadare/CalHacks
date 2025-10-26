@@ -337,26 +337,84 @@
             addMessage('user', text);
             chatInput.value = '';
             
-            // Check if user typed "show" command
-            if (text.toLowerCase() === 'show') {
-                // Request screen content from main process
-                ipcRenderer.send('get-screen-content');
+            // Check if it looks like code before sending to backend
+            if (looksLikeCode(text)) {
+                analyzeCode(text);
             } else {
-                // Handle other messages
-                setTimeout(() => {
-                    addMessage('ai', 'I\'m here to help you learn! Type "show" to see what I can see on your screen.');
-                }, 500);
+                // Regular chat message - send to backend as general conversation
+                analyzeCode(text);
             }
         }
 
-        // Listen for screen content from main process
-        ipcRenderer.on('screen-content', (event, content) => {
-            if (content && content.description) {
-                addMessage('ai', content.description);
-            } else {
-                addMessage('ai', 'Unable to capture screen content at this time.');
+        // Check if text looks like code
+        function looksLikeCode(text) {
+            // Check for code patterns first
+            const hasCodePatterns = text.includes('function ') || 
+                   text.includes('def ') || 
+                   text.includes('const ') || 
+                   text.includes('let ') || 
+                   text.includes('class ') ||
+                   text.includes('import ') ||
+                   text.includes('print(') ||
+                   text.includes('for(') ||
+                   text.includes('while(') ||
+                   text.includes('if(');
+            
+            const hasOperators = text.includes('=') || text.includes('<') || text.includes('>') || text.includes('+') || text.includes('-') || text.includes('*');
+            const hasCodeChars = (text.includes('(') && text.includes(')')) || (text.includes('{') && text.includes('}')) || text.includes('[]');
+            
+            // If it has code patterns or operators, it's likely code
+            if (hasCodePatterns || (hasOperators && hasCodeChars)) {
+                return true;
             }
-        });
+            
+            // Single word with no code patterns is probably not code
+            if (text.split(/\s+/).length === 1) {
+                return false;
+            }
+            
+            return text.includes('{') && text.includes('}') ||
+                   (text.includes('(') && text.includes(')'));
+        }
+
+        // Send code to Python backend API
+        async function analyzeCode(code) {
+            addMessage('ai', '🤔 Analyzing your code...');
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/code_update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        context: 'User chat',
+                        language: 'python'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Remove the "analyzing" message
+                if (chatMessages.lastChild) {
+                    chatMessages.removeChild(chatMessages.lastChild);
+                }
+                
+                // Always show the AI response if available
+                if (result.question) {
+                    addMessage('ai', result.question);
+                } else if (result.analysis.has_errors) {
+                    addMessage('ai', `⚠️ I found some errors in your code. ${result.analysis.errors[0]?.message || 'Check your syntax!'}`);
+                } else {
+                    addMessage('ai', '✓ Your code looks good! Keep up the great work!');
+                }
+            } catch (error) {
+                console.error('Error calling backend:', error);
+                addMessage('ai', '❌ Could not connect to analysis service. Make sure the Python backend is running.');
+            }
+        }
+
 
         sendBtn.addEventListener('click', sendMessage);
         chatInput.addEventListener('keypress', (e) => {
